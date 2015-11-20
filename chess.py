@@ -4,7 +4,7 @@
 import re # Das für den Mustervergleich erforderliche Modul
 
 #######################################################################
-# Konstanten, damit man sie alle am gleichen Platz hat
+# Verschiedene Text-Konstanten, damit man sie alle am gleichen Platz hat
 #######################################################################
 MSG_GAME_STARTED                    = "Das Spiel hat begonnen!\n"
 MSG_GAME_FINNISHED                  = "Das Spiel ist beendet.\n"
@@ -15,8 +15,8 @@ MSG_MOVING                          = "Ziehe %s %s von %i nach %i\n"
 STR_EMPTY_CELL                      = " "
 STR_BOTTOM_TOP_LINE                 = "  | A | B | C | D | E | F | G | H |  "
 STR_SEPARATOR                       = "-------------------------------------"
-MSG_ASK_FOR_PIECE                   = "Welche Figur? Gebe die Position an: "
-MSG_ASK_FOR_POSITION                = "Wohin? Gebe die Position an: "
+MSG_ASK_FOR_PIECE                   = "\nWelche Figur? Gebe die Position an: "
+MSG_ASK_FOR_POSITION                = "\nWohin? Gebe die Position an: "
 MSG_INVALID_MOVE                    = "Ungültiger Zug! Probier es noch einmal!\n"
 MSG_INVALID_INPUT                   = "Ungültige Eingabe! Probier es noch einmal!\n"
 MSG_WINNER                          = "%s hat gewonnen!\n"
@@ -42,14 +42,14 @@ class Chess():
         self.dic[letter+str(number)] = ind
         ind+=1
     # Initialize positions
-    self.positions.extend( [Rook(0),Knight(1),Bishop(2),King(3),Queen(4),Bishop(5),Knight(6),Rook(7)] )
+    self.positions.extend( [Rook(self,0),Knight(self,1),Bishop(self,2),King(self,3),Queen(self,4),Bishop(self,5),Knight(self,6),Rook(self,7)] )
     for i in range(8,16):
-      self.positions.append(Pawn(i))
+      self.positions.append(Pawn(self,i))
     for i in range(16,48):
       self.positions.append('')
     for i in range(48,56):
-      self.positions.append(Pawn(i,False))
-    self.positions.extend( [Rook(56,False),Knight(57,False),Bishop(58,False),King(59,False),Queen(60,False),Bishop(61,False),Knight(62,False),Rook(63,False)] )
+      self.positions.append(Pawn(self,i,False))
+    self.positions.extend( [Rook(self,56,False),Knight(self,57,False),Bishop(self,58,False),King(self,59,False),Queen(self,60,False),Bishop(self,61,False),Knight(self,62,False),Rook(self,63,False)] )
 
   #####################################################################
   # Hilfsfunktionen
@@ -105,13 +105,15 @@ class Chess():
     '''
     True if cell is not empty and piece is of admissible color
     '''
-    return self.is_white == cell_occuption.is_white if cell_occuption else False
+    return self.is_white == cell_occupation.is_white if cell_occupation else False
   
-  def is_allowed_move(self,piece,target_cell_occupation):
+  def is_allowed_move(self,move):
     '''
-    True if piece and target cell are admissible
+    True if piece and target cell are admissible and piece can reach target cell
     '''
-    return self.is_admissible_piece(piece) and self.is_allowed_cell(target_cell_occupation)
+    start, target = move
+    piece, cell_occupation = self.get_piece(start), self.get_piece(target)
+    return self.is_admissible_piece(piece) and self.is_allowed_cell(cell_occupation) and piece.is_valid_move(target)
   
   def is_valid_expression(self,pos):
     '''
@@ -129,14 +131,14 @@ class Chess():
     '''
     Displays the positions
     '''
-    print MSG_ROUND & self.get_color()
+    print MSG_ROUND % self.get_color()
     print STR_BOTTOM_TOP_LINE
     print STR_SEPARATOR
     for i in range(1,9):
       str_rank=str(i)
       for j in range(0,8):
-        str_rank+="|%s" % self.print_position((i-1)*8+j)
-      str_rank+="|%i" % i
+        str_rank+=" | %s" % self.print_position((i-1)*8+j)
+      str_rank+="| %i" % i
       print str_rank
       print STR_SEPARATOR
     print STR_BOTTOM_TOP_LINE
@@ -168,14 +170,14 @@ class Chess():
     thereby validating the plausibility of the input.
     This also toggles the indicator of the color moving
     '''
-    start, end = '',''
+    start, target = '',''
     while not self.is_valid_expression(start):
       start = raw_input(MSG_ASK_FOR_PIECE)
       if not self.is_valid_expression(start):
         print MSG_INVALID_INPUT
-    while not self.is_valid_expression(end):
+    while not self.is_valid_expression(target):
       target = raw_input(MSG_ASK_FOR_POSITION)
-      if not self.is_valid_expression(end):
+      if not self.is_valid_expression(target):
         print MSG_INVALID_INPUT
     # return the numeric start and end position
     return self.get_position(start),self.get_position(target)
@@ -187,7 +189,7 @@ class Chess():
     start_pos, target_pos = move
     piece_to_be_moved = self.get_piece(start_pos)
     piece_on_end_position = self.get_piece(target_pos)
-    if self.is_allowed_move(piece_to_be_moved,piece_on_end_position):
+    if self.is_allowed_move(move):
       self.set_piece(piece_to_be_moved,target_pos)
       if isinstance(piece_on_end_position,King):
         print MSG_WINNER % self.get_color()
@@ -197,9 +199,21 @@ class Chess():
       print MSG_INVALID_MOVE
       return True
       
+#######################################################################
+# Die Spielfiguren
+#######################################################################
+
 class Piece:
 
-  def __init__(self,pos,color=True):
+  '''
+  Oberklasse für alle Spielfiguren. Hat eine Position auf dem Spielfeld
+  und eine Farbe. In Unterklassen muss die Funktion is_valid_move()
+  implementiert werden, die die Spielfigur-spezifischen Zugvarianten
+  kennt.
+  '''
+
+  def __init__(self,game,pos,color=True):
+    self.game=game
     self.set_position(pos)
     self.is_white=color
     
@@ -209,19 +223,50 @@ class Piece:
   def set_position(self,pos):
     self.position=pos
     
+  def get_color(self):
+    return STR_WHITE if self.is_white else STR_BLACK
+    
+  def get_sign(self):
+    return (2*int(self.is_white)-1)
+
+  def is_right(self,pos):
+    '''
+    Wenn rechts von der Ausgangsposition, dann muss die Differenz
+    aus Zielspalte und Startspalte positiv sein
+    '''
+    start_rank, start_col = divmod(self.get_position(),8)
+    target_rank, target_col = divmod(pos,8)
+    return target_col - start_col > 0
+    
 class Pawn(Piece):
+  '''
+  Darf immer eine vorwärts (+8) und am Anfang zwei vorwärts (+16). Geschlagen wird dann
+  immer eins nach schräg links (+7) oder eins nach schräg rechts (+9)
+  '''
+  
   def __str__(self):
     if self.is_white:
       return 'B'
     else:
       return 'b'
   
-  def get_color(self):
-    return STR_WHITE if self.is_white else STR_BLACK
-
   def is_valid_move(self, pos):
-    # TO BE DONE
-    return True
+    
+    diff = pos - self.get_position()
+    if self.get_sign()*diff < 0:
+      return False
+    if diff == 8*self.get_sign() and not self.game.get_piece(pos):
+      return True
+    if (self.get_position() < 16 or self.get_position() > 47) and\
+          diff == 16*self.get_sign() and \
+          not self.game.get_piece(pos) and \
+          not self.game.get_piece(pos - 8):
+      return True
+    if diff in [-7,9] and self.is_right(pos) and self.game.get_piece(pos):
+      return True
+    if diff in [7,-9] and not self.is_right(pos) and self.game.get_piece(pos):
+      return True   
+    return False
     
 class Rook(Piece):
   def __str__(self):
@@ -235,6 +280,14 @@ class Rook(Piece):
     return True
     
 class Knight(Piece):
+  '''
+  Darf nach scharf links (+6,-10), leicht links (+15,-17), leicht rechts (-15,+17) 
+  und scharf rechts (-6,+10)
+  '''
+  
+  left_values = [-17,-10,6,15]
+  right_values = [-15,-6,10,17]
+  
   def __str__(self):
     if self.is_white:
       return 'S'
@@ -242,8 +295,15 @@ class Knight(Piece):
       return 's'
   
   def is_valid_move(self, pos):
-    # TO BE DONE
-    return True
+    diff = pos - self.get_position()
+    print "\nPrüfe Springerzug auf Gültigkeit\n"
+    for val in self.right_values:
+      if diff == val and self.is_right(pos):
+        return True
+    for val in self.left_values:
+      if diff == val and not self.is_right(pos):
+        return True
+    return False    
     
 class Bishop(Piece):
   def __str__(self):
