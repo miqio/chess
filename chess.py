@@ -1,7 +1,19 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import re
+import re # Das für den Mustervergleich erforderliche Modul
+
+#######################################################################
+# Konstanten, damit man sie alle am gleichen Platz hat
+#######################################################################
+MSG_GAME_STARTED                    = "Das Spiel hat begonnen!\n"
+MSG_GAME_FINNISHED                  = "Das Spiel ist beendet.\n"
+STR_WHITE                           = "Weiß"
+STR_BLACK                           = "Schwarz"
+MSG_ROUND                           = "%s ist am Zug.\n"
+MSG_MOVE                            = "Ziehe %s %s von %i nach %i"
+STR_EMPTY_CELL                      = " "
+MSG_POSITIONS
 
 class Chess():
   has_finnished=False
@@ -36,15 +48,18 @@ class Chess():
     # Returns numeric position, pos is the string describing the position
     return self.dic[pos]
     
+  def get_color(self):
+    return STR_WHITE if self.is_white else STR_BLACK
+    
   def get_piece(self,pos):
     # Returns piece on position pos or zero
-    return self.positions[pos]
+    ret = self.positions[pos]
+    return  ret if ret else 
     
   def set_piece(self,piece,pos):
     # sets piece on position position and adjusts the position attribute of piece. Also the cell at start position is reset
-    color = "Weiß" if piece.is_white else "Schwarz"
     startPos = piece.get_position()
-    print "Ziehe %s %s von %i nach %i" % (str(piece), color,startPos, pos)
+    print MSG_MOVE % (str(piece), piece.get_color(),startPos, pos)
     self.positions[pos] = piece
     self.positions[startPos] = ''
     piece.set_position(pos)
@@ -53,10 +68,7 @@ class Chess():
     return self.is_white != piece.is_white
     
   def print_positions(self):
-    if self.is_white:
-      print "Weiß ist am Zug"
-    else:
-      print "Schwarz ist am Zug"
+    print MSG_MOVE & self.get_color()
     print "  | A | B | C | D | E | F | G | H |  "
     print "-------------------------------------"
     for i in range(1,9):
@@ -79,7 +91,7 @@ class Chess():
   def start(self):
     while not self.has_finnished:
       self.perform_move()
-    print "Das Spiel ist beendet."
+    print MSG_GAME_FINNISHED
   
   def perform_move(self):
     self.print_positions()
@@ -137,6 +149,9 @@ class Pawn(Piece):
     else:
       return 'b'
   
+  def get_color(self):
+    return STR_WHITE if self.is_white else STR_BLACK
+
   def is_valid_move(self, pos):
     # TO BE DONE
     return True
