@@ -10,7 +10,7 @@ MSG_GAME_STARTED                    = "Das Spiel hat begonnen!\n"
 MSG_GAME_FINNISHED                  = "Das Spiel ist beendet.\n"
 STR_WHITE                           = "Weiß"
 STR_BLACK                           = "Schwarz"
-MSG_ROUND                           = "%s ist am Zug.\n"
+MSG_ROUND                           = "\n%s ist am Zug.\n"
 MSG_MOVING                          = "Ziehe %s %s von %i nach %i\n"
 STR_EMPTY_CELL                      = " "
 STR_BOTTOM_TOP_LINE                 = "  | A | B | C | D | E | F | G | H |  "
@@ -38,18 +38,48 @@ class Chess():
     letters=('A','B','C','D','E','F','G','H')
     numbers=(1,2,3,4,5,6,7,8)
     for number in numbers:
+      ind+=1
       for letter in letters:
         self.dic[letter+str(number)] = ind
         ind+=1
+      ind+=1
     # Initialize positions
-    self.positions.extend( [Rook(self,0),Knight(self,1),Bishop(self,2),King(self,3),Queen(self,4),Bishop(self,5),Knight(self,6),Rook(self,7)] )
-    for i in range(8,16):
+    #
+    # Es werden Reihen à 10 genommen, um bei diagonalen Bewegungn
+    # der Figuren den Rand leichter bestimmern zu können. Außerdem
+    # oben und unten je eine Reihe mit -1 
+    #
+    # Die obere Randreihe
+    for i in range(10):
+      self.positions.append(-1)
+    # Die 1. Reihe
+    self.positions.extend( \
+     [-1,Rook(self,11),Knight(self,12),Bishop(self,13),King(self,14), \
+       Queen(self,15),Bishop(self,16),Knight(self,17),Rook(self,18),-1] )
+    # Die 2. Reihe
+    self.positions.append(-1)
+    for i in range(21,29):
       self.positions.append(Pawn(self,i))
-    for i in range(16,48):
-      self.positions.append('')
-    for i in range(48,56):
+    self.positions.append(-1)
+    # Die 3. - 6. Reihe
+    for i in range(3,7):
+      self.positions.append(-1)
+      for j in range(i*10 +1,i*10+9):
+        self.positions.append('')
+      self.positions.append(-1)
+    # Die 7. Reihe
+    self.positions.append(-1)
+    for i in range(71,79):
       self.positions.append(Pawn(self,i,False))
-    self.positions.extend( [Rook(self,56,False),Knight(self,57,False),Bishop(self,58,False),King(self,59,False),Queen(self,60,False),Bishop(self,61,False),Knight(self,62,False),Rook(self,63,False)] )
+    self.positions.append(-1)
+    # Die 8. Reihe
+    self.positions.extend( \
+      [-1,Rook(self,81,False),Knight(self,82,False),Bishop(self,83,False), \
+        King(self,84,False),Queen(self,85,False),Bishop(self,86,False), \
+        Knight(self,87,False),Rook(self,88,False),-1] )
+    # Die unteree Randreihe
+    for i in range(10):
+      self.positions.append(-1)
 
   #####################################################################
   # Hilfsfunktionen
@@ -131,17 +161,17 @@ class Chess():
     '''
     Displays the positions
     '''
-    print MSG_ROUND % self.get_color()
     print STR_BOTTOM_TOP_LINE
     print STR_SEPARATOR
     for i in range(1,9):
       str_rank=str(i)
-      for j in range(0,8):
-        str_rank+=" | %s" % self.print_position((i-1)*8+j)
-      str_rank+="| %i" % i
+      for j in range(1,9):
+        str_rank+=" | %s" % self.print_position(i*10+j)
+      str_rank+=" | %i" % i
       print str_rank
       print STR_SEPARATOR
     print STR_BOTTOM_TOP_LINE
+    print MSG_ROUND % self.get_color()
   
   #################################################################
   # Main functions
@@ -229,19 +259,30 @@ class Piece:
   def get_sign(self):
     return (2*int(self.is_white)-1)
 
-  def is_right(self,pos):
-    '''
-    Wenn rechts von der Ausgangsposition, dann muss die Differenz
-    aus Zielspalte und Startspalte positiv sein
-    '''
-    start_rank, start_col = divmod(self.get_position(),8)
-    target_rank, target_col = divmod(pos,8)
-    return target_col - start_col > 0
+  def get_admissible_positions(self):
+    admissible_positions=[]
+    directions = list(self.directions)
+    while directions:
+      pos = self.get_position()
+      direction = directions.pop()
+      step = pos + direction
+      while not self.game.get_piece(step):
+        admissible_positions.append(step)
+        step += direction
+      admissible_positions.append(step)
+    return admissible_positions
     
+  def is_valid_move(self, pos):
+    admissible_positions = self.get_admissible_positions()
+    if pos in admissible_positions:
+      return True
+    else:
+      return False
+      
 class Pawn(Piece):
   '''
-  Darf immer eine vorwärts (+8) und am Anfang zwei vorwärts (+16). Geschlagen wird dann
-  immer eins nach schräg links (+7) oder eins nach schräg rechts (+9)
+  Darf immer eine vorwärts (+10) und am Anfang zwei vorwärts (+20). Geschlagen wird dann
+  immer eins nach schräg links (+9) oder eins nach schräg rechts (+11)
   '''
   
   def __str__(self):
@@ -251,33 +292,30 @@ class Pawn(Piece):
       return 'b'
   
   def is_valid_move(self, pos):
+    self_pos = self.get_position()
+    diff = pos - self_pos
+    abs_diff = abs(diff)
+    sign_diff = diff/abs_diff
+    sign_self = self.get_sign()
     
-    diff = pos - self.get_position()
-    if self.get_sign()*diff < 0:
-      return False
-    if diff == 8*self.get_sign() and not self.game.get_piece(pos):
+    if diff == 10*sign_self:                   # Wenn es 1 nach vorne (hinten) geht...
       return True
-    if (self.get_position() < 16 or self.get_position() > 47) and\
-          diff == 16*self.get_sign() and \
-          not self.game.get_piece(pos) and \
-          not self.game.get_piece(pos - 8):
-      return True
-    if diff in [-7,9] and self.is_right(pos) and self.game.get_piece(pos):
-      return True
-    if diff in [7,-9] and not self.is_right(pos) and self.game.get_piece(pos):
-      return True   
+    if diff == 20*sign_self and not self.game.get_piece(10*sign_self) and (sign_diff*self_pos/20 == 1 or sign_diff*self_pos/70 == -1):
+      return True                        
+    for p in [sign_self*9,sign_self*11]:       # Wenn einer links (rechts) 
+      if diff == p and self.game.get_piece(p): # geschlagen werden soll...
+        return True
     return False
     
 class Rook(Piece):
+  
+  directions = (-10,-1,1,10)
+
   def __str__(self):
     if self.is_white:
       return 'T'
     else:
       return 't'
-  
-  def is_valid_move(self, pos):
-    # TO BE DONE
-    return True
     
 class Knight(Piece):
   '''
@@ -285,8 +323,7 @@ class Knight(Piece):
   und scharf rechts (-6,+10)
   '''
   
-  left_values = [-17,-10,6,15]
-  right_values = [-15,-6,10,17]
+  directions = (-21,-19,-12,-8,8,12,19,21)
   
   def __str__(self):
     if self.is_white:
@@ -296,38 +333,35 @@ class Knight(Piece):
   
   def is_valid_move(self, pos):
     diff = pos - self.get_position()
-    print "\nPrüfe Springerzug auf Gültigkeit\n"
-    for val in self.right_values:
-      if diff == val and self.is_right(pos):
-        return True
-    for val in self.left_values:
-      if diff == val and not self.is_right(pos):
-        return True
-    return False    
+    if diff in self.directions:
+      return True
+    else:
+      return False    
     
 class Bishop(Piece):
+
+  directions = (-11,-9,9,11)
+
   def __str__(self):
     if self.is_white:
       return 'L'
     else:
       return 'l'
-  
-  def is_valid_move(self, pos):
-    # TO BE DONE
-    return True
     
 class Queen(Piece):
+
+  directions = (-11,-10,-9,-1,1,9,10,11)
+
   def __str__(self):
     if self.is_white:
       return 'D'
     else:
       return 'd'
-  
-  def is_valid_move(self, pos):
-    # TO BE DONE
-    return True
     
 class King(Piece):
+
+  directions = (-11,-10,-9,-1,1,9,10,11)
+
   def __str__(self):
     if self.is_white:
       return 'K'
@@ -335,5 +369,9 @@ class King(Piece):
       return 'k'
   
   def is_valid_move(self, pos):
-    # TO BE DONE
-    return True
+    diff = pos - self.get_position()
+    if diff in self.directions:
+      return True
+    else:
+      return False    
+
