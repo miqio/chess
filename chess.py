@@ -125,7 +125,16 @@ class Chess():
       return self.white_king
     else:
       return self.black_king
-    
+
+  def get_king_of_current_player(self):    
+    '''
+    Return the king of the current player
+    '''
+    if self.is_white:
+      return self.white_king
+    else:
+      return self.black_king
+
   def print_position(self,pos):
     '''
     Returns a string representing a position
@@ -262,7 +271,9 @@ class Chess():
         print MSG_CHECK_GIVEN
         self.is_not_check_given = False
       # Wenn der gegnerische König schachmatt ist...
-      if not self.is_not_check_given and not opposing_king.get_admissible_positions():
+      if not self.is_not_check_given and\
+       not opposing_king.get_admissible_positions() and\
+       not piece_to_be_moved.is_safe_position(target_pos):
         print MSG_WINNER % self.get_color()
         self.has_finnished = True
       if isinstance(piece_to_be_moved,King) and not self.is_not_check_given:
@@ -304,8 +315,31 @@ class Piece:
     return STR_WHITE if self.is_white else STR_BLACK
     
   def get_sign(self):
+    '''
+    Returns +1 if self.is_white and -1 otherwise
+    '''
     return (2*int(self.is_white)-1)
 
+  def is_safe_position(self, pos):
+    '''
+    Return True, if not in reach of opposing pieces
+    '''
+    opposing_pieces = filter(lambda o: isinstance(o,Piece) and\
+     o.is_white != self.is_white, self.game.positions)
+    for piece in opposing_pieces:
+      if isinstance(piece,King):
+        pos_king = piece.get_position()
+        admissible_positions = [pos_king+p for p in piece.directions]
+      elif isinstance(piece,Pawn):
+        pos_pawn = piece.get_position()
+        sign_pawn = piece.get_sign()
+        admissible_positions = [pos_pawn+sign_pawn*9,pos_pawn+sign_pawn*11]
+      else:
+        admissible_positions = piece.get_admissible_positions()
+      if pos in admissible_positions:
+        return False
+    return True
+  
   def get_admissible_positions(self):
     admissible_positions=[]
     directions = list(self.directions)
@@ -347,11 +381,15 @@ class Pawn(Piece):
     sign_self = self.get_sign()
     # Ein Schritt nach vorne geht immer (wenn nicht, wird das schon durch 
     # chess.is_allowed_move() erkannt), deshalb:
-    admissible_positions = [self_pos+10*sign_self]
-    # Zwei Schritte nach vorne sind möglich, wenn keiner im Weg steht und
-    # die Bauern aus der Startreihe bewegt werden sollen, also:
-    if not self.game.get_piece(self_pos+10*sign_self) and (self_pos/20 == 1 or self_pos/70 == 1):
-      admissible_positions.append(self_pos+20*sign_self)   
+    if not self.game.get_piece(self_pos+10*sign_self):
+      admissible_positions = [self_pos+10*sign_self]
+      # Zwei Schritte nach vorne sind möglich, wenn keiner im Weg steht und
+      # die Bauern aus der Startreihe bewegt werden sollen, also:
+      if not self.game.get_piece(self_pos+20*sign_self) and (self_pos/20 == 1 or self_pos/70 == 1):
+        admissible_positions.append(self_pos+20*sign_self)   
+    # Wenn einer im Weg steht, geht es nicht nach vorne:
+    else:
+      admissible_positions =[]
     # Wenn eine Figur schräg links oder rechts mit einem Schritt erreicht werden
     # kann, ist auch das eine erlaubte Position. Folglich:                     
     for p in [sign_self*9,sign_self*11]:        
@@ -428,19 +466,8 @@ class King(Piece):
     '''
     position = self.get_position()
     admissible_positions = [position+p for p in self.directions] 
+    print "Prüfe König %s auf %i" % (str(self),position)
     for pos in admissible_positions:
       if not self.is_safe_position(pos):
         admissible_positions.remove(pos)
     return admissible_positions
-
-  def is_safe_position(self, pos):
-    '''
-    Return True, if not in reach of opposing pieces
-    '''
-    opposing_pieces = filter(lambda o: isinstance(o,Piece) and o.is_white != self.game.is_white, self.game.positions)
-    for piece in opposing_pieces:
-      if pos in piece.get_admissible_positions():
-        return False
-    return True
-  
-
