@@ -57,35 +57,35 @@ class Chess():
     #
     # Die obere Randreihe
     for i in range(10):
-      self.positions.append(-1)
+      self.positions.append(None)
     # Die 1. Reihe
     self.positions.extend( \
-     [-1,Rook(self,11),Knight(self,12),Bishop(self,13),King(self,14), \
-       Queen(self,15),Bishop(self,16),Knight(self,17),Rook(self,18),-1] )
+     [None,Rook(self,11),Knight(self,12),Bishop(self,13),King(self,14), \
+       Queen(self,15),Bishop(self,16),Knight(self,17),Rook(self,18),None] )
     # Die 2. Reihe
-    self.positions.append(-1)
+    self.positions.append(None)
     for i in range(21,29):
       self.positions.append(Pawn(self,i))
-    self.positions.append(-1)
+    self.positions.append(None)
     # Die 3. - 6. Reihe
     for i in range(3,7):
-      self.positions.append(-1)
+      self.positions.append(None)
       for j in range(i*10 +1,i*10+9):
         self.positions.append('')
-      self.positions.append(-1)
+      self.positions.append(None)
     # Die 7. Reihe
-    self.positions.append(-1)
+    self.positions.append(None)
     for i in range(71,79):
       self.positions.append(Pawn(self,i,False))
-    self.positions.append(-1)
+    self.positions.append(None)
     # Die 8. Reihe
     self.positions.extend( \
-      [-1,Rook(self,81,False),Knight(self,82,False),Bishop(self,83,False), \
+      [None,Rook(self,81,False),Knight(self,82,False),Bishop(self,83,False), \
         King(self,84,False),Queen(self,85,False),Bishop(self,86,False), \
-        Knight(self,87,False),Rook(self,88,False),-1] )
+        Knight(self,87,False),Rook(self,88,False),None] )
     # Die untere Randreihe
     for i in range(10):
-      self.positions.append(-1)
+      self.positions.append(None)
     # Die Könige merken, um später zu erkennen, ob sich diese im Schach 
     # befinden
     self.white_king = self.get_piece(14)
@@ -144,14 +144,16 @@ class Chess():
     
   def set_piece(self,piece,pos):
     '''
-    Sets piece on position position and adjusts the position attribute of piece. 
-    Also the cell at start position is reset
+    Sets piece on position pos and adjusts the position attribute of piece. 
+    Also the cell at start position is reset, if start position is not equal
+    pos
     '''
     startPos = piece.get_position()
     print MSG_MOVING % (str(piece), piece.get_color(),startPos, pos)
     self.positions[pos] = piece
-    self.positions[startPos] = ''
-    piece.set_position(pos)
+    if startPos != pos:
+      self.positions[startPos] = ''
+      piece.set_position(pos)
   
   ################################################################################
   # Some test functions
@@ -169,20 +171,13 @@ class Chess():
     else:
       return False
   
-  def is_allowed_cell(self,cell_occupation):
-    '''
-    True, if cell is empty or piece on cell is opposing.
-    cell_occupation is either of type Piece or None
-    '''
-    return self.is_white != cell_occupation.is_white if cell_occupation else True
-    
-  def is_allowed_move(self,move):
+  def is_valid_move(self,move):
     '''
     True if piece and target cell are admissible and piece can reach target cell
     '''
     start, target = move
     piece, cell_occupation = self.get_piece(start), self.get_piece(target)
-    return self.is_admissible_piece(piece) and self.is_allowed_cell(cell_occupation) and piece.is_valid_move(target)
+    return self.is_admissible_piece(piece) and piece.is_valid_move(target)
   
   def is_valid_expression(self,pos):
     '''
@@ -231,6 +226,9 @@ class Chess():
     while is_wrong_move:
       move = self.get_move()
       is_wrong_move = self.move_piece(move)
+      if self.has_finnished():
+        print MSG_WINNER % self.get_king_of_opponent().get_color()
+        break
     # Switch from white to black or vice versa to indicate the
     # currently allowed player
     self.is_white = not self.is_white
@@ -260,24 +258,16 @@ class Chess():
     start_pos, target_pos = move
     piece_to_be_moved = self.get_piece(start_pos)
     piece_on_end_position = self.get_piece(target_pos)
-    if self.is_allowed_move(move):
+    if self.is_valid_move(move):
       self.set_piece(piece_to_be_moved,target_pos)
-      # Check, if the opposing king is reachable after the move
-      # and set self.is_not_check_given to False
+      # Wenn durch den Zug der gegnerische König in Schach gestellt wird:
       opposing_king = self.get_king_of_opponent()
       pos_king = opposing_king.get_position()
-      # Wenn durch den Zug der gegnerische König in Schach gestellt wird:
       if pos_king in piece_to_be_moved.get_admissible_positions():
         print MSG_CHECK_GIVEN
-        self.is_not_check_given = False
-      # Wenn der gegnerische König schachmatt ist...
-      if not self.is_not_check_given and\
-       not opposing_king.get_admissible_positions() and\
-       not piece_to_be_moved.is_safe_position(target_pos):
-        print MSG_WINNER % self.get_color()
-        self.has_finnished = True
-      if isinstance(piece_to_be_moved,King) and not self.is_not_check_given:
-        self.is_not_check_given = True
+        opposing_king.is_check_given = True
+      if isinstance(piece_to_be_moved,King) and piece_to_be_moved.is_check_given:
+        piece_to_be_moved.is_check_given = False
       return False
     else:
       print MSG_INVALID_MOVE
@@ -311,7 +301,14 @@ class Piece:
   def set_position(self,pos):
     self.position=pos
     
+  #############################################################################
+  # Einige Hilfsfunktionen
+  #############################################################################
+  
   def get_color(self):
+    '''
+    Returns the string white or black
+    '''
     return STR_WHITE if self.is_white else STR_BLACK
     
   def get_sign(self):
@@ -320,40 +317,93 @@ class Piece:
     '''
     return (2*int(self.is_white)-1)
 
-  def is_safe_position(self, pos):
-    '''
-    Return True, if not in reach of opposing pieces
-    '''
-    opposing_pieces = filter(lambda o: isinstance(o,Piece) and\
-     o.is_white != self.is_white, self.game.positions)
-    for piece in opposing_pieces:
-      if isinstance(piece,King):
-        pos_king = piece.get_position()
-        admissible_positions = [pos_king+p for p in piece.directions]
-      elif isinstance(piece,Pawn):
-        pos_pawn = piece.get_position()
-        sign_pawn = piece.get_sign()
-        admissible_positions = [pos_pawn+sign_pawn*9,pos_pawn+sign_pawn*11]
-      else:
-        admissible_positions = piece.get_admissible_positions()
-      if pos in admissible_positions:
-        return False
-    return True
-  
   def get_admissible_positions(self):
+    '''
+    Gibt eine Liste der erlaubten Zielpositionen der Figur.
+    
+    Dazu wird iterativ für jede Richtung geprüft, ob ein Feld erreichbar ist.
+    Sobald ein feld besetzt ist, bricht die Iteration für die jeweilige 
+    Richtung ab. Wenn das Feld durch eine gegnerische Figur besetzt ist, gilt
+    auch dieses Feld als erlaubt.
+    
+    Die erlaubten Richtungen sind Eigenschaften der jeweiligen Spielfiguren.
+    '''
     admissible_positions=[]
     directions = list(self.directions)
     while directions:
       pos = self.get_position()
       direction = directions.pop()
       step = pos + direction
-      while not self.game.get_piece(step):
+      while self.game.get_piece(step) == "":
         admissible_positions.append(step)
         step += direction
-      admissible_positions.append(step)
+      if self.is_allowed_cell(step):
+        admissible_positions.append(step)
+    print "%s auf %i erreicht %s" % (str(self),pos, str(admissible_positions))
     return admissible_positions
     
+  #############################################################################
+  # Einige Prüffunktionen
+  #############################################################################
+  
+  def is_allowed_cell(self,target):
+    '''
+    True, if cell is empty or piece on cell is opposing.
+    cell_occupation is either of type Piece or None or the empty string.
+    Beachte, das an Stellen, wo python einen Wahrheitswert erwartet,
+    ein Ausdruck im zweifel zu einem solchen verwandelt wird. Dabei erhält
+    die Null, die leere Menge, der leere String immer den Wahrheitswert False,
+    wohingegen alles andere automatisch True ist. Die Umwandlung geschieht
+    automatisch mit der eingebauten Funktion (builtin) bool(). 
+    '''
+    if self.game.get_piece(target):
+      return self.is_white != self.game.get_piece(target).is_white
+      # True if not of same color, False otherwise
+    else:
+      return self.game.get_piece(target) is not None 
+      # True if not None, False if empty string
+
+  def is_piece_of_opponent(self, o):
+    '''
+    Testet, ob o vom Typ Piece ist und die gegnerische Farbe hat
+    '''
+    return isinstance(o,Piece) and o.is_white != self.is_white
+    
+  def is_safe_position(self, pos):
+    '''
+    Return False, if in reach of an opposing piece at pos, else True.
+    
+    Das builtin filter(Filterfunktion, Liste) filtert Werte aus einer Liste
+    anhand einer Filterfunktion, die eine Filterbedingung definiert.
+    '''
+    opposing_pieces = filter( lambda o: self.is_piece_of_opponent(o) ,self.game.positions)
+    # Testweise die Figur auf pos setzen und die Figur merken, die auf pos war
+    target_piece = self.game.get_piece(pos)
+    start_pos = self.get_position()
+    self.game.set_piece(self,pos)
+    for piece in opposing_pieces:
+      if isinstance(piece,Pawn):
+        # Wenn überhaupt, kann ein Bauer nur nach schräg vorne schlagen.
+        pos_pawn = piece.get_position()
+        sign_pawn = piece.get_sign()
+        admissible_positions = [pos_pawn+sign_pawn*9,pos_pawn+sign_pawn*11]
+      else:
+        admissible_positions = piece.get_admissible_positions()
+      if pos in admissible_positions:
+        print "\n%s auf %i bedroht %i\n" % (str(piece),piece.get_position(),pos)
+        self.game.set_piece(self, start_pos)
+        if target_piece:
+          self.game.set_piece(target_piece,pos)
+        return False
+    self.game.set_piece(self, start_pos)
+    if target_piece:
+      self.game.set_piece(target_piece,pos)
+    return True
+  
   def is_valid_move(self, pos):
+    '''
+    Prüft, ob die Figur auf die angestrebte Zielposition darf.
+    '''
     admissible_positions = self.get_admissible_positions()
     if pos in admissible_positions:
       return True
@@ -452,6 +502,7 @@ class Queen(Piece):
 class King(Piece):
 
   directions = (-11,-10,-9,-1,1,9,10,11)
+  is_check_given = False
 
   def __str__(self):
     if self.is_white:
@@ -462,12 +513,22 @@ class King(Piece):
   def get_admissible_positions(self):
     '''
     Erlaubt sind alle Züge. Solche, die auf eine eigene Figur verweisen oder aus dem
-    Spielfeld heraus führen, werden schon durch chess.is_allowed_move() gefiltert.
+    Spielfeld heraus führen, werden schon durch chess.is_allowed_move() gefiltert. 
+    Damit innerhalb eines Spielzugs nicht durch rekursives Aufrufen von 
+    is_safe_position und get_admissible_positions endlos iteriert wird, wird die 
+    is_safe_position für den eigenen König nicht durchgeführt.
     '''
     position = self.get_position()
-    admissible_positions = [position+p for p in self.directions] 
-    print "Prüfe König %s auf %i" % (str(self),position)
+    admissible_positions = filter(lambda pos: self.is_allowed_cell(pos),[position+p for p in self.directions])
+    if self.game.is_white != self.is_white:
+      return admissible_positions
     for pos in admissible_positions:
       if not self.is_safe_position(pos):
+        print "\nDie Position %i ist für %s nicht sicher oder nicht erreichbar" % (pos,str(self))
         admissible_positions.remove(pos)
+      # Wenn der gegnerische König schachmatt ist...
+      if self.is_check_given and not admissible_positions:
+        print MSG_WINNER % self.get_color()
+        self.game.has_finnished = True
     return admissible_positions
+
