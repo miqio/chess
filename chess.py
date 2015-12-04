@@ -1,8 +1,11 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import re   # Das für den Mustervergleich erforderliche Modul "regular expressions""
+import logging  # Um Meldungen auszugeben
+import re       # Das für den Mustervergleich erforderliche Modul "regular expressions""
 
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
 #######################################################################
 # Verschiedene Text-Konstanten, damit man sie alle am gleichen Platz hat
 #######################################################################
@@ -151,6 +154,9 @@ class Chess():
     if startPos != pos:
       self.positions[startPos] = ''
       piece.set_position(pos)
+
+  def switch_color(self):
+    self.is_white = not self.is_white
   
   ################################################################################
   # Some test functions
@@ -233,15 +239,17 @@ class Chess():
     '''
     is_valid_move=False
     while not is_valid_move:
+      if self.is_check_given():
+        print MSG_CHECK_GIVEN
       move = self.get_move()
       is_valid_move = self.move_piece(move)
-      if not is_valid_move: 
-        print MSG_INVALID_MOVE 
       if self.has_finnished:  # Will occur when a player is given chess mate
         break
+      if not is_valid_move: 
+        print MSG_INVALID_MOVE 
     # Switch from white to black or vice versa to indicate the
     # currently moving player
-    self.is_white = not self.is_white
+    self.switch_color()
       
   def get_move(self):
     '''
@@ -267,14 +275,15 @@ class Chess():
     '''
     start_pos, target_pos = move
     piece_to_be_moved = self.get_piece(start_pos)
+    moving_king = self.get_king_of_moving_player()
     if self.is_valid_move(move):
       self.set_piece(piece_to_be_moved,target_pos)
       # Wenn durch den Zug der gegnerische König in Schach gestellt wird:
       opposing_king = self.get_king_of_opponent()
-      pos_king = opposing_king.get_position()
-      if pos_king in piece_to_be_moved.get_admissible_positions():
-        print MSG_CHECK_GIVEN
+      if not opposing_king.is_safe_position():
         opposing_king.is_check_given = True
+        if not opposing_king.get_admissible_positions(True):
+          self.has_finnished = True
       return True
     else:
       return False
@@ -284,7 +293,6 @@ class Chess():
 #######################################################################
 
 class Piece(object):
-
   '''
   Oberklasse für alle Spielfiguren. Hat eine Position auf dem Spielfeld
   und eine Farbe. In Unterklassen muss die Funktion is_valid_move()
@@ -295,16 +303,19 @@ class Piece(object):
   die Unterklassen nicht erforderlich, da ja auch die Oberklasse mit den
   erlaubten Schrittrichtungen initialisiert werden könnte.
   '''
+  position = None
 
   def __init__(self,game,pos,color=True):
     self.game=game
     self.set_position(pos)
     self.is_white=color
+    log.info("%s initialized with color %s at position %i",self.__class__.__name__,self.get_color(),self.get_position())
     
   def get_position(self):
     return self.position
     
   def set_position(self,pos):
+    log.info("Setting Position of %s at %s to %i",self.__class__.__name__,str(self.get_position()), pos)
     self.position=pos
     
   #############################################################################
@@ -336,13 +347,17 @@ class Piece(object):
     '''
     admissible_positions=[]
     directions = list(self.directions)
+    log.info("Possible directions for %s at %i are %s", self.__class__.__name__, self.get_position(),str(directions))
     for direction in directions:
       pos = self.get_position()
       step = pos + direction
+      log.info("Checking position %i for %s at %i", step, self.__class__.__name__, self.get_position())
       while self.game.get_piece(step) == "":
+        log.info("Appending %i", step)
         admissible_positions.append(step)
         step += direction
       if self.is_allowed_cell(step):
+        log.info("Appending %i, because %s belongs to opponent", step, self.game.get_piece(step).__class__.__name__)
         admissible_positions.append(step)
     return admissible_positions
     
@@ -352,7 +367,7 @@ class Piece(object):
   
   def is_moving(self):
     '''
-    True if piece belongs the moving player
+    True if piece belongs to the moving player
     '''
     return self.game.is_white == self.is_white
     
@@ -372,6 +387,8 @@ class Piece(object):
     wohingegen alles andere automatisch True ist. Die Umwandlung geschieht
     automatisch mit der eingebauten Funktion (builtin) bool(). 
     '''
+    if target < 0 or target > 99:
+      return False
     if self.game.get_piece(target):
       return self.is_white != self.game.get_piece(target).is_white
       # True if opponent's color, False otherwise
@@ -385,43 +402,48 @@ class Piece(object):
     '''
     return isinstance(o,Piece) and o.is_white != self.is_white
     
-  def is_safe_position(self, pos):
+  def is_safe_position(self, simulator=None):
     '''
     Return False, if in reach of an opposing piece at pos, else True.
     
     Das builtin filter(Filterfunktion, Liste) filtert Werte aus einer Liste
     anhand einer Filterfunktion, die eine Filterbedingung definiert.
     '''
+    is_safe_position = True
     opposing_pieces = filter( lambda o: self.is_piece_of_opponent(o) ,self.game.positions)
+    # Falls am Ende der Runde geprüft werden soll, ob durch irgendwen in Schach
     # Testweise die Figur auf pos setzen und die Figur merken, die auf pos war
-    target_piece = self.game.get_piece(pos)
-    start_pos = self.get_position()
-    self.game.set_piece(self,pos)
+    pos = self.get_position()
+    log.info("Checking if %s at %i is check given", self.__class__.__name__,pos )
     for piece in opposing_pieces:
       if isinstance(piece,Pawn):
         # Wenn überhaupt, kann ein Bauer nur nach schräg vorne schlagen.
         pos_pawn = piece.get_position()
+        log.info('Checking if Pawn at %i attacks',pos_pawn)
         sign_pawn = piece.get_sign()
         admissible_positions = [pos_pawn+sign_pawn*9,pos_pawn+sign_pawn*11]
       else:
+        log.info('Checking if %s at %i attacks',piece.__class__.__name__,piece.get_position())
         admissible_positions = piece.get_admissible_positions()
-      if pos in admissible_positions:
-        print "\n%s auf %i bedroht %i\n" % (str(piece),piece.get_position(),pos)
-        self.game.set_piece(self, start_pos)
-        if target_piece:
-          self.game.set_piece(target_piece,pos)
-        return False
-    self.game.set_piece(self, start_pos)
-    if target_piece:
-      self.game.set_piece(target_piece,pos)
-    return True
+      if admissible_positions and pos in admissible_positions:
+        log.info( "\n%s at %i attacks at %i\n" , piece.__class__.__name__,piece.get_position(),pos)
+        is_safe_position = False
+        break
+    # Undo all ficticious steps
+    if simulator:
+      simulator.undo_set_piece()
+    return is_safe_position
   
   def is_valid_move(self, pos):
     '''
     Prüft, ob die Figur auf die angestrebte Zielposition darf.
     '''
+    log.info("Checking if %s can move from %i to %i",self.__class__.__name__,self.get_position(),pos)
     admissible_positions = self.get_admissible_positions()
-    if pos in admissible_positions:
+    if admissible_positions and pos in admissible_positions:
+      log.info("Checking if King at %i is in danger When %s is moved from %i to %i",self.game.get_king_of_moving_player().get_position(),self.__class__.__name__,self.get_position(),pos)
+      if not self.game.get_king_of_moving_player().is_safe_position(Simulator(self.game).set_piece(self, pos)):
+        return False
       return True
     else:
       return False
@@ -449,23 +471,28 @@ class Pawn(Piece):
     Bauern haben je nach Position und Position gegnerischer Figuren unterschiedliche
     Schrittrichtungen
     '''
+    log.info("Going to check Pawn at %i...", self.get_position())
     self_pos = self.get_position()
     sign_self = self.get_sign()
     # Ein Schritt nach vorne wenn nicht besetzt: 
     if self.is_allowed_cell(self_pos+10*sign_self):
+      log.info("Can reach position %i", self_pos+10*sign_self)
       admissible_positions = [self_pos+10*sign_self]
       # Zwei Schritte nach vorne sind möglich, wenn keiner im Weg steht und
       # die Bauern aus der Startreihe bewegt werden sollen, also:
       if  self.is_allowed_cell(self_pos+20*sign_self) and (self_pos/20 == 1 or self_pos/70 == 1):
+        log.info("Can reach position %i", self_pos+20*sign_self)
         admissible_positions.append(self_pos+20*sign_self)   
     # Wenn einer im Weg steht, geht es nicht nach vorne:
     else:
       admissible_positions =[]
     # Wenn eine Figur schräg links oder rechts mit einem Schritt erreicht werden
     # kann, ist auch das eine erlaubte Position. Folglich:                     
-    for p in [sign_self*9,sign_self*11]:        
-      if super(Pawn,self).is_allowed_cell(self_pos+p):      
-        admissible_positions.append(self_pos+p)
+    for p in [self_pos+sign_self*9,self_pos+sign_self*11]: 
+      occupation = self.game.get_piece(p)       
+      if occupation and not occupation.is_moving():      
+        log.info("Can hit %s at position %i", self.game.get_piece(p).__class__.__name__,p)
+        admissible_positions.append(p)
     return admissible_positions
     
 class Rook(Piece):
@@ -497,7 +524,11 @@ class Knight(Piece):
     Erlaubt sind alle Züge, die erlaubt sind.
     '''
     pos = self.get_position()
-    return filter( lambda p : self.is_valid_move(p),[pos+d for d in self.directions] )
+    log.info("Going to check Knight at %i...", pos)
+    directions = [pos+d for d in self.directions]
+    admissible_positions = filter( lambda p : self.is_allowed_cell(p),directions )
+    log.info("Can reach %s",str(admissible_positions))
+    return 
     
 class Bishop(Piece):
 
@@ -541,11 +572,28 @@ class King(Piece):
     Falls der König im Schach stand und sich nich bewegen kann, dann wohl 
     nur auf eine unbedrohte Position
     '''
+    log.info("Setting Position of King at %s to %i",str(self.get_position()), pos)
     self.position=pos
     if self.is_check_given:
+      log.info("Releasing 'is_check_given'")
       self.is_check_given = False
 
-  def get_admissible_positions(self):
+  def is_valid_move(self, pos):
+    '''
+    Prüft, ob die Figur auf die angestrebte Zielposition darf.
+    '''
+    log.info("Checking if %s can move from %i to %i",self.__class__.__name__,self.get_position(),pos)
+    admissible_positions = self.get_admissible_positions(True)
+    if admissible_positions and pos in admissible_positions:
+      return True
+    else:
+      # Wenn der König schachmatt ist...
+      if self.is_check_given and not admissible_positions:
+        log.info("No available position found!")
+        self.game.has_finnished = True
+      return False
+
+  def get_admissible_positions(self,check_if_attacked=False):
     '''
     Erlaubt sind alle Züge. Solche, die auf eine eigene Figur verweisen oder 
     aus dem Spielfeld heraus führen, werden schon durch chess.is_allowed_move() 
@@ -555,14 +603,56 @@ class King(Piece):
     '''
     position = self.get_position()
     positions = [position+d for d in self.directions]
+    log.info("Going to check King at %i...", position)
     admissible_positions = filter(lambda pos: self.is_allowed_cell(pos),positions)
-    if not self.is_moving():  # Prüfung für den gegnerischen König überflüßig
-      return admissible_positions 
-    for pos in admissible_positions:
-      if not self.is_safe_position(pos):
-        admissible_positions.remove(pos)
-      # Wenn der gegnerische König schachmatt ist...
-      if self.is_check_given and not admissible_positions:
-        self.game.has_finnished = True
+    log.info("Can reach %s", admissible_positions)
+    if check_if_attacked:  # Prüfung nur wenn gefordert
+      for pos in list(admissible_positions):
+        log.info("Checking position %i\n", pos)
+        if not self.is_safe_position(Simulator(self.game).set_piece(self,pos)):
+          log.info("Position %i is not safe!\n", pos)
+          admissible_positions.remove(pos)
     return admissible_positions
+    
+class Simulator:
+  '''
+  Um einen Zug zu simulieren. Merkt sich im Wesentlichen den Ursprungszustand,
+  um dahin wieder zurückkehren zu können
+  '''
+
+  def __init__(self, game):
+    self.game = game
+  
+  def get_piece(self,pos):
+    return self.game.get_piece(pos)
+  
+  def set_piece(self, piece, target_pos):
+    '''
+    Wie chess.set_piece, aber mit der Zusatzfunktion, den Ursprungszustand zu
+    memorieren.
+    
+    Gibt den Simulator zurück, um verketten zu können.
+    ''' 
+    log.info("Simulating a move...")
+    self.piece_to_be_moved = piece
+    self.target_piece = self.get_piece(target_pos)
+    self.start_pos = piece.get_position()
+    self.target_pos = target_pos
+    self.is_check_given = piece.is_check_given if isinstance(piece, King) else None
+    self.game.set_piece(piece,target_pos)
+    return self
+
+  def undo_set_piece(self):
+    '''
+    Rekonstruiert die Ursprungsstellung
+    ''' 
+    self.game.set_piece(self.piece_to_be_moved, self.start_pos)
+    if self.target_piece:
+      self.game.set_piece(self.target_piece,self.target_pos)
+    if self.is_check_given:
+      log.info('Restoring is_check_given')
+      self.piece_to_be_moved.is_check_given = self.is_check_given
+    log.info('Simulation finnished')
+    return self
+    
 
