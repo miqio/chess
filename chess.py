@@ -4,7 +4,7 @@
 import logging  # Um Meldungen auszugeben
 import re       # Das für den Mustervergleich erforderliche Modul "regular expressions""
 
-logging.basicConfig(level=logging.debug)
+logging.basicConfig(level=logging.ERROR) # Setze auf logging.DEBUG, damit Meldungen ausgegeben werden
 log = logging.getLogger(__name__)
 #######################################################################
 # Verschiedene Text-Konstanten, damit man sie alle am gleichen Platz hat
@@ -242,6 +242,7 @@ class Chess():
     '''
     is_valid_move=False
     while not is_valid_move:
+      # Zunächst prüfen, ob der ziehende Spieler im Schach steht
       if self.is_check_given():
         print MSG_CHECK_GIVEN
       move = self.get_move()
@@ -315,7 +316,7 @@ class Piece(object):
     
   def get_position(self):
     return self.position
-    
+  
   def set_position(self,pos):
     log.debug("Setting Position of %s at %s to %i",self.__class__.__name__,str(self.get_position()), pos)
     self.position=pos
@@ -330,12 +331,6 @@ class Piece(object):
     '''
     return STR_WHITE if self.is_white else STR_BLACK
     
-  def get_sign(self):
-    '''
-    Returns +1 if self.is_white and -1 otherwise
-    '''
-    return (2*int(self.is_white)-1)
-
   def get_admissible_positions(self):
     '''
     Gibt eine Liste der erlaubten Zielpositionen der Figur.
@@ -354,10 +349,13 @@ class Piece(object):
       pos = self.get_position()
       step = pos + direction
       log.debug("Checking position %i for %s at %i", step, self.__class__.__name__, self.get_position())
-      while self.is_allowed_cell(step):
+      while self.is_allowed_cell(step) and not self.game.get_piece(step):
         log.debug("Appending %i", step)
         admissible_positions.append(step)
         step += direction
+      if self.is_allowed_cell(step):
+        log.debug("Appending %i, because %s belongs to opponent", step, self.game.get_piece(step).__class__.__name__)
+        admissible_positions.append(step)      
     return admissible_positions
     
   #############################################################################
@@ -409,7 +407,13 @@ class Piece(object):
     der gegnerischen Figuren die Zielposition auch erreichen kann.
     
     Das builtin filter(Filterfunktion, Liste) filtert Werte aus einer Liste
-    anhand einer Filterfunktion, die eine Filterbedingung definiert.
+    anhand einer Filterfunktion, die eine Filterbedingung definiert. filter(lambda x:Funktion(x),Liste) 
+    ist eine spezielle Kurzschreibweise und äquivalent zu:
+                
+                    for x in Liste:
+                      if not Funktion(x):
+                        Liste.remove(x)
+                    return Liste 
     '''
     is_safe_position = True
     opposing_pieces = filter( lambda o: self.is_piece_of_opponent(o) ,self.game.positions)
@@ -452,7 +456,7 @@ class Pawn(Piece):
   
   def __init__(self,game,pos,color=True):
     super(Pawn,self).__init__(game, pos, color)
-    directions = (9,10,11) if self.is_white else (-9,-10,-11)
+    self.directions = (9,10,11) if self.is_white else (-9,-10,-11)
     
   def __str__(self):
     if self.is_white:
@@ -469,6 +473,16 @@ class Pawn(Piece):
       return is_occupied and super(Pawn,self).is_allowed_cell(target)
     else:
       return self.game.get_piece(target) == ''
+      
+  def get_max_steps(self,direction):
+    '''
+    Bauern können nur aus der Startreihe zwei Schritte gehen
+    '''
+    pos = self.get_position()
+    if pos/20 == 1 or pos/70 ==1 and not abs(direction) in [9,11]:
+      return 2
+    else:
+      return 1
 
   def get_admissible_positions(self):
     '''
@@ -487,11 +501,13 @@ class Pawn(Piece):
     for direction in directions:
       pos = self.get_position()
       step = pos + direction
+      count = 0
       log.debug("Checking position %i for %s at %i", step, self.__class__.__name__, self.get_position())
-      while self.is_allowed_cell(step) and abs(step-pos) <= 20:
+      while count < self.get_max_steps(direction) and self.is_allowed_cell(step,direction):
         log.debug("Appending %i", step)
         admissible_positions.append(step)
         step += direction
+        count += 1
     return admissible_positions
 
 class Rook(Piece):
@@ -654,4 +670,6 @@ class Simulator:
     log.debug('Simulation finnished')
     return self
     
-
+if __name__ == "__main__":
+  game = Chess()
+  game.start()
