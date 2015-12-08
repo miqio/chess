@@ -148,14 +148,20 @@ class Chess():
     '''
     Sets piece on position pos and adjusts the position attribute of piece. 
     Also the cell at start position is reset, if start position is not equal
-    pos
+    pos. Can also perform a rochade
     '''
-    startPos = piece.get_position()
+    start_pos = piece.get_position()
     self.positions[pos] = piece
-    if startPos != pos:
-      self.positions[startPos] = ''
+    if start_pos != pos:
+      self.positions[start_pos] = ''
       piece.set_position(pos)
-
+    # Wenn es eine Rochade sein soll
+    if isinstance(piece,King):
+      if pos-start_pos == 2:
+        self.set_piece(self.get_piece(pos + 1),start_pos)
+      if pos-start_pos == -2:
+        self.set_piece(self.get_piece(pos - 2),start_pos)
+    
   def switch_color(self):
     '''
     Schaltet die Farbe um, um die Farbe des ziehenden Spielers zu bestimmen
@@ -282,11 +288,11 @@ class Chess():
         print MSG_CHECK_GIVEN
       move = self.get_move()
       is_valid_move = self.move_piece(move)
+      if self.has_finnished:  # Will occur when a player is given chess mate
+        break
       if not is_valid_move: 
         print MSG_INVALID_MOVE
         continue 
-      if self.has_finnished:  # Will occur when a player is given chess mate
-        break
     # Switch from white to black or vice versa to indicate the
     # currently moving player
     self.append_history(move)
@@ -344,19 +350,23 @@ class Piece(object):
   erlaubten Schrittrichtungen initialisiert werden könnte.
   '''
   position = None
+  has_never_been_moved = True
 
   def __init__(self,game,pos,color=True):
     self.game=game
     self.set_position(pos)
     self.is_white=color
-    log.debug("%s initialized with color %s at position %i",self.__class__.__name__,self.get_color(),self.get_position())
+    log.debug("%s initialized with color %s at position %i",\
+      self.__class__.__name__,self.get_color(),self.get_position())
     
   def get_position(self):
     return self.position
   
   def set_position(self,pos):
-    log.debug("Setting Position of %s at %s to %i",self.__class__.__name__,str(self.get_position()), pos)
-    self.position=pos
+    log.debug("Setting Position of %s at %s to %i",\
+      self.__class__.__name__,str(self.get_position()), pos)
+    self.position = pos
+    self.has_never_been_moved = False
     
   #############################################################################
   # Einige Hilfsfunktionen
@@ -404,7 +414,7 @@ class Piece(object):
     True if piece belongs to the moving player
     '''
     return self.game.is_white == self.is_white
-    
+   
   def is_king_of_moving_player(self):
     '''
     True if self is king and belongs to the moving player
@@ -669,6 +679,22 @@ class King(Piece):
         if not self.is_safe_position(Simulator(self.game).set_piece(self,pos)):
           log.debug("Position %i is not safe!\n", pos)
           admissible_positions.remove(pos)
+      if self.has_never_been_moved():
+        if self.game.get_piece(position+3).has_never_been_moved()\
+            and position+1 in admissible_positions\
+            and filter(lambda o:isinstance(o,Piece),\
+              self.game.get_position()[position+1:position+2]) \
+            and self.is_safe_position(Simulator(self.game).set_piece(self,position+2)):
+          log.debug("Der %se König kann nach rechts rochieren.")          
+          admissible_positions.append(position + 2)
+        if self.game.get_piece(position-4).has_never_been_moved()\
+            and position-1 in admissible_positions\
+            and filter(lambda o:isinstance(o,Piece),\
+              self.game.get_position()[position-3:position-1]) \
+            and self.is_safe_position(Simulator(self.game).set_piece(self,position-2)):
+          log.debug("Der %se König kann nach links rochieren.")          
+          admissible_positions.append(position - 2)
+          
     return admissible_positions
     
 class Simulator:
@@ -695,6 +721,7 @@ class Simulator:
     self.target_piece = self.get_piece(target_pos)
     self.start_pos = piece.get_position()
     self.target_pos = target_pos
+    self.has_never_been_moved = piece.has_never_been_moved
     self.is_check_given = piece.is_check_given if isinstance(piece, King) else None
     self.game.set_piece(piece,target_pos)
     return self
@@ -709,6 +736,9 @@ class Simulator:
     if self.is_check_given:
       log.debug('Restoring is_check_given')
       self.piece_to_be_moved.is_check_given = self.is_check_given
+    if self.has_never_been_moved:
+      log.debug('Restoring has_never_been_moved')
+      self.piece_to_be_moved.has_never_been_moved = self.has_never_been_moved
     log.debug('Simulation finnished')
     return self
     
