@@ -4,7 +4,7 @@
 import logging  # Um Meldungen auszugeben
 import re       # Das für den Mustervergleich erforderliche Modul "regular expressions""
 
-logging.basicConfig(level=logging.ERROR) # Setze auf logging.DEBUG, damit Meldungen ausgegeben werden
+logging.basicConfig(level=logging.DEBUG) # Setze auf logging.DEBUG, damit Meldungen ausgegeben werden
 log = logging.getLogger(__name__)
 #######################################################################
 # Verschiedene Text-Konstanten, damit man sie alle am gleichen Platz hat
@@ -595,7 +595,7 @@ class Knight(Piece):
     directions = [pos+d for d in self.directions]
     admissible_positions = filter( lambda p : self.is_allowed_cell(p),directions )
     log.debug("Can reach %s",str(admissible_positions))
-    return 
+    return admissible_positions
     
 class Bishop(Piece):
 
@@ -679,15 +679,15 @@ class King(Piece):
         if not self.is_safe_position(Simulator(self.game).set_piece(self,pos)):
           log.debug("Position %i is not safe!\n", pos)
           admissible_positions.remove(pos)
-      if self.has_never_been_moved():
-        if self.game.get_piece(position+3).has_never_been_moved()\
+      if self.has_never_been_moved:
+        if self.game.get_piece(position+3).has_never_been_moved\
             and position+1 in admissible_positions\
             and filter(lambda o:isinstance(o,Piece),\
               self.game.get_position()[position+1:position+2]) \
             and self.is_safe_position(Simulator(self.game).set_piece(self,position+2)):
           log.debug("Der %se König kann nach rechts rochieren.")          
           admissible_positions.append(position + 2)
-        if self.game.get_piece(position-4).has_never_been_moved()\
+        if self.game.get_piece(position-4).has_never_been_moved\
             and position-1 in admissible_positions\
             and filter(lambda o:isinstance(o,Piece),\
               self.game.get_position()[position-3:position-1]) \
