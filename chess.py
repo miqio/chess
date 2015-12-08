@@ -33,6 +33,7 @@ class Chess():
   is_white = True                     # True, wenn weiß am Zug ist
   dic={}                              # Zuordnungen Feldbezeichnungen zu Index
   positions=[]                        # Spielfeld mit Belegungen
+  history=[]                          # Um sich die Spielzüge zu merken
   pattern=re.compile('[A-H][1-8]$')   # Für den Mustervergleich bei der Eingabe
   
   def __init__(self):
@@ -160,11 +161,41 @@ class Chess():
     Schaltet die Farbe um, um die Farbe des ziehenden Spielers zu bestimmen
     '''
     self.is_white = not self.is_white
+    
+  def append_history(self, move):
+    '''
+    Addiert einen Spielzug zur history
+    '''
+    start, target = move
+    piece = self.get_piece(target)
+    self.history.append((start,target,piece))
+    
+  def get_last_move(self):
+    '''
+    gibt den letzten Zug zurück
+    '''
+    return self.history[-1]
+    
+  def get_last_moved_piece(self):
+    '''
+    Gibt die zuletzt bewegte Figur zurück
+    '''
+    start, target, piece = self.get_last_move()
+    return piece
   
   ################################################################################
   # Some test functions
   ################################################################################
     
+  def can_be_hit_en_passant(self,pawn):
+    '''
+    Zur Bedienung der "Schlagen en passant"-Regel.
+    '''
+    start, target, piece = self.get_last_move()
+    if isinstance(Pawn, piece) and piece == pawn and abs(target-start) == 20:
+      return True
+    return False
+  
   def is_check_given(self):
     '''
     Return True, if check is given to one of the players
@@ -257,6 +288,7 @@ class Chess():
         print MSG_INVALID_MOVE 
     # Switch from white to black or vice versa to indicate the
     # currently moving player
+    self.append_history(move)
     self.switch_color()
       
   def get_move(self):
@@ -453,14 +485,17 @@ class Piece(object):
       
 class Pawn(Piece):
   '''
+  Der Bauer kann am wenigsten, hat aber die kompliziertesten Regeln. Vor allem für die Regel 
+  "Schlagen en passant"-Regel (vgl. Art 3.7 d der offiziellen Regeln des Weltschachverbands (FIDE), 
+  braucht es ein Gedächtnis, ob ein Bauer gerade um zwei Felder nach vorne gerückt ist.
   Der weiße Bauer immer eine vorwärts (+10) und am Anfang zwei vorwärts (+20). Geschlagen wird dann
   immer eins nach schräg links (+9) oder eins nach schräg rechts (+11). Für den schwarzen Bauern gilt
-  das negative Vorzeichen
+  das negative Vorzeichen.
   '''
   
   def __init__(self,game,pos,color=True):
     super(Pawn,self).__init__(game, pos, color)
-    self.directions = (9,10,11) if self.is_white else (-9,-10,-11)
+    self.directions = (-1,1,9,10,11) if self.is_white else (1,-1,-9,-10,-11)
     
   def __str__(self):
     if self.is_white:
@@ -472,9 +507,11 @@ class Pawn(Piece):
     '''
     Bei Bauern ist es richtungsabhängig, ob sie auf besetzte Felder können. 
     '''
-    if abs(direction) in [9,11]:
+    if abs(direction) in [9,11] and super(Pawn,self).is_allowed_cell(target):
       is_occupied = bool(self.game.get_piece(target))       
-      return is_occupied and super(Pawn,self).is_allowed_cell(target)
+      return is_occupied 
+    elif abs(direction) == 1 and self.game.can_be_hit_en_passant(self.game.get_piece(target)):
+      return True
     else:
       return self.game.get_piece(target) == ''
       
