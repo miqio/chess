@@ -282,10 +282,11 @@ class Chess():
         print MSG_CHECK_GIVEN
       move = self.get_move()
       is_valid_move = self.move_piece(move)
+      if not is_valid_move: 
+        print MSG_INVALID_MOVE
+        continue 
       if self.has_finnished:  # Will occur when a player is given chess mate
         break
-      if not is_valid_move: 
-        print MSG_INVALID_MOVE 
     # Switch from white to black or vice versa to indicate the
     # currently moving player
     self.append_history(move)
