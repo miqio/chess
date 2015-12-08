@@ -47,8 +47,8 @@ class Chess():
       self.positions.append(None)
     # Die 1. Reihe
     self.positions.extend( \
-     [None,Rook(self,11),Knight(self,12),Bishop(self,13),King(self,14), \
-       Queen(self,15),Bishop(self,16),Knight(self,17),Rook(self,18),None] )
+     [None,Rook(self,11),Knight(self,12),Bishop(self,13),Queen(self,14), \
+       King(self,15),Bishop(self,16),Knight(self,17),Rook(self,18),None] )
     # Die 2. Reihe
     self.positions.append(None)
     for i in range(21,29):
@@ -68,7 +68,7 @@ class Chess():
     # Die 8. Reihe
     self.positions.extend( \
       [None,Rook(self,81,False),Knight(self,82,False),Bishop(self,83,False), \
-        King(self,84,False),Queen(self,85,False),Bishop(self,86,False), \
+        Queen(self,84,False),King(self,85,False),Bishop(self,86,False), \
         Knight(self,87,False),Rook(self,88,False),None] )
     # Die untere Randreihe
     for i in range(10):
@@ -214,11 +214,15 @@ class Chess():
     '''
     print STR_BOTTOM_TOP_LINE
     print STR_SEPARATOR
+    # positions enthält die Feldbelegungen auf den Feldern 11-18, 21-28,...,81-88
+    # Außerdem ist dei erste Reihe unten und nicht oben, weshalb (9-i) und nicht i
+    # Das Feld wird mit der Nummer der jeweiligen Reihe am linken und rechten
+    # Spielfeldrand dargestellt
     for i in range(1,9):
-      str_rank=str(i)
+      str_rank=str(9-i)
       for j in range(1,9):
-        str_rank+=" | %s" % self.print_position(i*10+j)
-      str_rank+=" | %i" % i
+        str_rank+=" | %s" % self.print_position((9-i)*10+j)
+      str_rank+=" | %i" % 9-i
       print str_rank
       print STR_SEPARATOR
     print STR_BOTTOM_TOP_LINE
