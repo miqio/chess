@@ -90,8 +90,8 @@ class Chess():
       ind+=1
     # Die Könige merken, um später zu erkennen, ob sich diese im Schach 
     # befinden
-    self.white_king = self.get_piece(14)
-    self.black_king = self.get_piece(84)
+    self.white_king = self.get_piece(15)
+    self.black_king = self.get_piece(85)
 
   #####################################################################
   # Hilfsfunktionen
@@ -174,7 +174,7 @@ class Chess():
     '''
     gibt den letzten Zug zurück
     '''
-    return self.history[-1]
+    return self.history[-1] if self.history else (0, 0, -1)
     
   def get_last_moved_piece(self):
     '''
@@ -192,7 +192,7 @@ class Chess():
     Zur Bedienung der "Schlagen en passant"-Regel.
     '''
     start, target, piece = self.get_last_move()
-    if isinstance(Pawn, piece) and piece == pawn and abs(target-start) == 20:
+    if piece == pawn and abs(target-start) == 20 and isinstance(piece,Pawn):
       return True
     return False
   
@@ -253,7 +253,7 @@ class Chess():
       str_rank=str(9-i)
       for j in range(1,9):
         str_rank+=" | %s" % self.print_position((9-i)*10+j)
-      str_rank+=" | %i" % 9-i
+      str_rank+=" | %s" % str(9-i)
       print str_rank
       print STR_SEPARATOR
     print STR_BOTTOM_TOP_LINE
