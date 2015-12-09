@@ -3,8 +3,14 @@
 
 import logging  # Um Meldungen auszugeben
 import re       # Das für den Mustervergleich erforderliche Modul "regular expressions""
+import argparse # Damit beim Programmaufruf Werte übergeben werden können
 
-logging.basicConfig(level=logging.DEBUG) # Setze auf logging.DEBUG, damit Meldungen ausgegeben werden
+parser = argparse.ArgumentParser(description="Schachspiel für die Kommandozeile und zwei Spieler")
+parser.add_argument("-v", "--verbose", help="increase output verbosity",
+                    action="store_true")
+args = parser.parse_args()
+log_level = logging.DEBUG if args.verbose else logging.WARN
+logging.basicConfig(level=log_level) # Setze auf logging.DEBUG, damit Meldungen ausgegeben werden
 log = logging.getLogger(__name__)
 #######################################################################
 # Verschiedene Text-Konstanten, damit man sie alle am gleichen Platz hat
