@@ -367,7 +367,7 @@ class King(Piece):
             fields = get_chessboard().positions[pos_r+1:pos_k]
             if not filter(lambda p: isinstance(p,Piece),fields):
               is_safe_position = True
-              for pos in range(pos_r+1,pos_k):
+              for pos in range(pos_r+2,pos_k):
                 if not self.is_safe_position(pos):
                   is_safe_position = False
               if is_safe_position:
@@ -377,7 +377,7 @@ class King(Piece):
             fields = get_chessboard().positions[pos_k+1:pos_r]
             if not filter(lambda p: isinstance(p,Piece),fields):
               is_safe_position = True
-              for pos in range(pos_k+1,pos_r):
+              for pos in range(pos_k+1,pos_r-1):
                 if not self.is_safe_position(pos):
                   is_safe_position = False
               if is_safe_position:
