@@ -203,11 +203,20 @@ class Pawn(Piece):
     '''
     Bei Bauern ist es richtungsabhängig, ob sie auf besetzte Felder können. 
     '''
-    if abs(direction) in [9,11] and super(Pawn,self).is_allowed_cell(target):
-      is_occupied = bool(get_chessboard().get_piece(target))       
-      return is_occupied 
-    elif abs(direction) == 1 and get_chessboard().can_be_hit_en_passant(get_chessboard().get_piece(target)):
-      return True
+    # Für diagonale Richtungen muss das benachbarte Feld mit einem Gegner besetzt sein...
+    if abs(direction) in [9,11]:
+      if super(Pawn,self).is_allowed_cell(target):
+        is_occupied = bool(get_chessboard().get_piece(target))       
+        return is_occupied
+      else:
+        return False
+    # Das gleiche gilt für Schritte nach rechts oder links unter bestimmten Voraussetzungen...
+    elif abs(direction) == 1:
+      if get_chessboard().can_be_hit_en_passant(get_chessboard().get_piece(target)):
+        return True
+      else:
+        return False
+    # Ansonsten geht es nur für unbesetzte Felder
     else:
       return get_chessboard().get_piece(target) == ''
       
@@ -216,10 +225,16 @@ class Pawn(Piece):
     Bauern können nur aus der Startreihe zwei Schritte gehen
     '''
     pos = self.get_position()
-    if pos/20 == 1 or pos/70 ==1 and not abs(direction) in [9,11]:
-      return 2
+    if self.is_white:
+      if pos/20 == 1 and direction == 10:
+        return 2
+      else:
+        return 1
     else:
-      return 1
+      if pos/70 == 1 and direction == -10:
+        return 2
+      else:
+        return 1
 
   def get_admissible_positions(self):
     '''
