@@ -33,6 +33,9 @@ MSG_INVALID_INPUT                   = "Ungültige Eingabe! Probier es noch einma
 MSG_WINNER                          = "Schachmatt! %s hat gewonnen!\nDas Spiel ist beendet.\n"
 MSG_CHECK_GIVEN                     = "Schach!\n"
 
+CHESSBOARD = None           # Das aktuelle Schachspiel mit seinen Figuren
+INTERFACE = None            # Die Benutzerschnittstelle
+
 #######################################################################
 # Die Spielfiguren
 #######################################################################
@@ -51,9 +54,8 @@ class Piece(object):
   position = None
   has_never_been_moved = True
 
-  def __init__(self,game,pos,color=True):
-    self.game=game
-    self.set_position(pos)
+  def __init__(self,pos,color=True):
+    self.position = pos
     self.is_white=color
     log.debug("%s initialized with color %s at position %i",\
       self.__class__.__name__,self.get_color(),self.get_position())
@@ -95,12 +97,12 @@ class Piece(object):
       pos = self.get_position()
       step = pos + direction
       log.debug("Checking position %i for %s at %i", step, self.__class__.__name__, self.get_position())
-      while self.is_allowed_cell(step) and not self.game.get_piece(step):
+      while self.is_allowed_cell(step) and not get_chessboard().get_piece(step):
         log.debug("Appending %i", step)
         admissible_positions.append(step)
         step += direction
       if self.is_allowed_cell(step):
-        log.debug("Appending %i, because %s belongs to opponent", step, self.game.get_piece(step).__class__.__name__)
+        log.debug("Appending %i, because %s belongs to opponent", step, get_chessboard().get_piece(step).__class__.__name__)
         admissible_positions.append(step)      
     return admissible_positions
     
@@ -112,7 +114,7 @@ class Piece(object):
     '''
     True if piece belongs to the moving player
     '''
-    return self.game.is_white == self.is_white
+    return get_chessboard().is_white == self.is_white
    
   def is_king_of_moving_player(self):
     '''
@@ -132,11 +134,11 @@ class Piece(object):
     '''
     if target < 0 or target > 99:
       return False
-    if self.game.get_piece(target):
-      return self.is_white != self.game.get_piece(target).is_white
+    if get_chessboard().get_piece(target):
+      return self.is_white != get_chessboard().get_piece(target).is_white
       # True if opponent's color, False otherwise
     else:
-      return self.game.get_piece(target) is not None 
+      return get_chessboard().get_piece(target) is not None 
       # True if empty string, i.e a valid but un-occupied position
 
   def is_piece_of_opponent(self, o):
@@ -145,36 +147,21 @@ class Piece(object):
     '''
     return isinstance(o,Piece) and o.is_white != self.is_white
     
-  def is_safe_position(self, simulator=None):
+  def is_safe_position(self, target_pos=None):
     '''
-    simulator simuliert einen Spielzug einer beliebigen Figur,
-    die auch die Figur selbst sein kann. Dann wird geprüft, ob die Figur selbst
-    auf der Zielposition angegriffen wird, indem geprüft wird, ob irgendeine
-    der gegnerischen Figuren die Zielposition auch erreichen kann.
-    
-    Das builtin filter(Filterfunktion, Liste) filtert Werte aus einer Liste
-    anhand einer Filterfunktion, die eine Filterbedingung definiert. filter(lambda x:Funktion(x),Liste) 
-    ist eine spezielle Kurzschreibweise und äquivalent zu:
-                
-                    for x in Liste:
-                      if not Funktion(x):
-                        Liste.remove(x)
-                    return Liste 
+    Prüft, ob die Figur auf der angegebenen Position in Bedrängnis gerät
     '''
     is_safe_position = True
-    opposing_pieces = filter( lambda o: self.is_piece_of_opponent(o) ,self.game.positions)
-    pos = self.get_position()
+    pos = target_pos if target_pos else self.get_position()
+    opposing_pieces = filter( lambda o: self.is_piece_of_opponent(o) ,get_chessboard().positions)
     log.debug("Checking if %s at %i is check given", self.__class__.__name__,pos )
     for piece in opposing_pieces:
-      log.debug('Checking if %s at %i attacks',piece.__class__.__name__,piece.get_position())
+      log.debug('Checking if %s at %i attacks',piece.__class__.__name__,pos)
       admissible_positions = piece.get_admissible_positions()
       if admissible_positions and pos in admissible_positions:
         log.debug( "%s at %i attacks at %i!\n" , piece.__class__.__name__,piece.get_position(),pos)
         is_safe_position = False
         break
-    # Nicht vergessen, alles wieder auf Anfang zu setzen:
-    if simulator:
-      simulator.undo_set_piece()
     return is_safe_position
   
   def is_valid_move(self, pos):
@@ -184,10 +171,9 @@ class Piece(object):
     log.debug("Checking if %s can move from %i to %i\n",self.__class__.__name__,self.get_position(),pos)
     admissible_positions = self.get_admissible_positions()
     if admissible_positions and pos in admissible_positions:
-      king = self.game.get_king_of_moving_player()
-      log.debug("Checking if King at %i is in danger when %s is moved from %i to %i",king.get_position(),self.__class__.__name__,self.get_position(),pos)
+      log.debug("Checking if King is in danger when %s is moved from %i to %i",self.__class__.__name__,self.get_position(),pos)
       # Wenn der eigene König nach Durchführung des geplanten Zugs im Schach stünde... 
-      if not king.is_safe_position(Simulator(self.game).set_piece(self, pos)):
+      if not Simulator(self.get_position(), pos).is_safe_position_for_king():
         return False
       return True
     else:
@@ -203,8 +189,8 @@ class Pawn(Piece):
   das negative Vorzeichen.
   '''
   
-  def __init__(self,game,pos,color=True):
-    super(Pawn,self).__init__(game, pos, color)
+  def __init__(self,pos,color=True):
+    super(Pawn,self).__init__( pos, color)
     self.directions = (-1,1,9,10,11) if self.is_white else (1,-1,-9,-10,-11)
     
   def __str__(self):
@@ -218,12 +204,12 @@ class Pawn(Piece):
     Bei Bauern ist es richtungsabhängig, ob sie auf besetzte Felder können. 
     '''
     if abs(direction) in [9,11] and super(Pawn,self).is_allowed_cell(target):
-      is_occupied = bool(self.game.get_piece(target))       
+      is_occupied = bool(get_chessboard().get_piece(target))       
       return is_occupied 
-    elif abs(direction) == 1 and self.game.can_be_hit_en_passant(self.game.get_piece(target)):
+    elif abs(direction) == 1 and get_chessboard().can_be_hit_en_passant(get_chessboard().get_piece(target)):
       return True
     else:
-      return self.game.get_piece(target) == ''
+      return get_chessboard().get_piece(target) == ''
       
   def get_max_steps(self,direction):
     '''
@@ -338,8 +324,7 @@ class King(Piece):
     Falls der König im Schach stand und sich nich bewegen kann, dann wohl 
     nur auf eine unbedrohte Position
     '''
-    log.debug("Setting Position of King at %s to %i",str(self.get_position()), pos)
-    self.position=pos
+    super(King,self).set_position(pos)
     if self.is_check_given:
       log.debug("Releasing 'is_check_given'")
       self.is_check_given = False
@@ -349,17 +334,17 @@ class King(Piece):
     Prüft, ob die Figur auf die angestrebte Zielposition darf.
     '''
     log.debug("Checking if %s can move from %i to %i",self.__class__.__name__,self.get_position(),pos)
-    admissible_positions = self.get_admissible_positions(True)
+    admissible_positions = self.get_safe_positions()
     if admissible_positions and pos in admissible_positions:
       return True
     else:
       # Wenn der König schachmatt ist...
       if self.is_check_given and not admissible_positions:
         log.debug("No available position found!")
-        self.game.has_finnished = True
+        get_chessboard().has_finnished = True
       return False
 
-  def get_admissible_positions(self,check_if_attacked=False):
+  def get_admissible_positions(self):
     '''
     Erlaubt sind alle Züge. Solche, die auf eine eigene Figur verweisen oder 
     aus dem Spielfeld heraus führen, werden schon durch chess.is_allowed_move() 
@@ -372,41 +357,62 @@ class King(Piece):
     log.debug("Going to check King at %i...", position)
     admissible_positions = filter(lambda pos: self.is_allowed_cell(pos),positions)
     log.debug("Can reach %s", admissible_positions)
-    if check_if_attacked:  # Prüfung nur wenn gefordert
-      for pos in list(admissible_positions):
-        log.debug("Checking position %i\n", pos)
-        if not self.is_safe_position(Simulator(self.game).set_piece(self,pos)):
-          log.debug("Position %i is not safe!\n", pos)
-          admissible_positions.remove(pos)
-      if self.has_never_been_moved:
-        if self.game.get_piece(position+3).has_never_been_moved\
-            and position+1 in admissible_positions\
-            and filter(lambda o:isinstance(o,Piece),\
-              self.game.get_position()[position+1:position+2]) \
-            and self.is_safe_position(Simulator(self.game).set_piece(self,position+2)):
-          log.debug("Der %se König kann nach rechts rochieren.")          
-          admissible_positions.append(position + 2)
-        if self.game.get_piece(position-4).has_never_been_moved\
-            and position-1 in admissible_positions\
-            and filter(lambda o:isinstance(o,Piece),\
-              self.game.get_position()[position-3:position-1]) \
-            and self.is_safe_position(Simulator(self.game).set_piece(self,position-2)):
-          log.debug("Der %se König kann nach links rochieren.")          
-          admissible_positions.append(position - 2)
-          
-    return admissible_positions
+    if self.has_never_been_moved:
+      rooks = get_chessboard().white_rooks if self.is_white else get_chessboard().black_rooks
+      for r in rooks:
+        if r.has_never_been_moved:
+          pos_r = r.get_position()
+          pos_k = self.get_position()
+          if pos_r < pos_k:
+            fields = get_chessboard().positions[pos_r+1:pos_k]
+            if not filter(lambda p: isinstance(p,Piece),fields):
+              is_safe_position = True
+              for pos in range(pos_r+1,pos_k):
+                if not self.is_safe_position(pos):
+                  is_safe_position = False
+              if is_safe_position:
+                log.debug("Der %se König kann nach links rochieren.",self.get_color())          
+                admissible_positions.append(position - 2)
+          else:
+            fields = get_chessboard().positions[pos_k+1:pos_r]
+            if not filter(lambda p: isinstance(p,Piece),fields):
+              is_safe_position = True
+              for pos in range(pos_k+1,pos_r):
+                if not self.is_safe_position(pos):
+                  is_safe_position = False
+              if is_safe_position:
+                log.debug("Der %se König kann nach rechts rochieren.",self.get_color())          
+                admissible_positions.append(position + 2)
+    return admissible_positions         
     
+  def get_safe_positions(self):
+    admissible_positions = self.get_admissible_positions()
+    for pos in list(admissible_positions):
+      log.debug("Checking position %i\n", pos)
+      if not self.is_safe_position(pos):
+        log.debug("Position %i is not safe!\n", pos)
+        admissible_positions.remove(pos)
+    return admissible_positions
+
 class Simulator:
   '''
   Um einen Zug zu simulieren. Merkt sich im Wesentlichen den Ursprungszustand,
   um dahin wieder zurückkehren zu können
   '''
+  chessboard=None
 
-  def __init__(self, game):
-    self.game = game
+  def __init__(self, start_pos, target_pos):
+    piece = self.get_piece(start_pos)
+    self.set_piece(piece,target_pos)
+  
+  def get_chessboard(self):
+    if not self.chessboard:
+      self.chessboard = newchessboard(str(get_chessboard()))
+      self.chessboard.is_white=get_chessboard().is_white
+    return self.chessboard
   
   def get_piece(self,pos):
-    return self.game.get_piece(pos)
+    return self.get_chessboard().get_piece(pos)
   
   def set_piece(self, piece, target_pos):
     '''
@@ -422,33 +428,27 @@ class Simulator:
     self.target_pos = target_pos
     self.has_never_been_moved = piece.has_never_been_moved
     self.is_check_given = piece.is_check_given if isinstance(piece, King) else None
-    self.game.set_piece(piece,target_pos)
+    self.get_chessboard().set_piece(piece,target_pos)
     return self
-
-  def undo_set_piece(self):
+  
+  def is_safe_position_for_king(self):
     '''
-    Rekonstruiert die Ursprungsstellung
-    ''' 
-    self.game.set_piece(self.piece_to_be_moved, self.start_pos)
-    if self.target_piece:
-      self.game.set_piece(self.target_piece,self.target_pos)
-    if self.is_check_given:
-      log.debug('Restoring is_check_given')
-      self.piece_to_be_moved.is_check_given = self.is_check_given
-    if self.has_never_been_moved:
-      log.debug('Restoring has_never_been_moved')
-      self.piece_to_be_moved.has_never_been_moved = self.has_never_been_moved
-    log.debug('Simulation finnished')
-    return self
-    
+    Prüft, ob der eigene König durch den geplanten Zug in Bedrängnis gerät
+    '''  
+    return self.chessboard().get_king_of_moving_player().is_safe_position()
+
 class Chessboard():
   '''
   Container für Spielfeldbelegungen
   '''
-  has_finnished = False               # Für die Abbruchbedingung
-  is_white = True                     # True, wenn weiß am Zug ist
-  history=[]                          # Um sich die Spielzüge zu merken
-  positions=[]                        # Spielfeld mit Belegungen
+  has_finnished = False         # Für die Abbruchbedingung
+  is_white      = True          # True, wenn weiß am Zug ist
+  history       =[]             # Um sich die Spielzüge zu merken
+  positions     =[]             # Spielfeld mit Belegungen
+  white_king    = None
+  black_king    = None
+  white_rooks   = []
+  black_rooks   = []
   initial_positions = [
     "T,S,L,D,K,L,S,T",
     "B,B,B,B,B,B,B,B",
@@ -477,8 +477,20 @@ class Chessboard():
       self.positions.append(None)     # Nix am rechten Rand
     for i in range(10):
       self.positions.append(None)
-    self.white_king = self.get_piece(15)
-    self.black_king = self.get_piece(85)
+    # Positionen der Türme merken für eventuelle Rochaden
+    rooks = filter(lambda p: isinstance(p,Rook),self.positions)
+    for r in rooks:
+      if r.is_white:
+        self.white_rooks.append(r)
+      else:
+        self.black_rooks.append(r)
+    # Positionen der Könige merken um Schach feststellen zu können
+    kings = filter(lambda p: isinstance(p,King),self.positions)
+    for k in kings:
+      if k.is_white:
+        self.white_king = k
+      else:
+        self.black_king = k
     
   def __str__(self):
     out = ''
@@ -524,7 +536,7 @@ class Chessboard():
     '''
     Sets piece on position pos and adjusts the position attribute of piece. 
     Also the cell at start position is reset, if start position is not equal
-    pos. Can also perform a rochade
+    pos. Can also perform a castling
     '''
     start_pos = piece.get_position()
     self.positions[pos] = piece
@@ -534,9 +546,9 @@ class Chessboard():
     # Wenn es eine Rochade sein soll
     if isinstance(piece,King):
       if pos-start_pos == 2:
-        self.set_piece(self.get_piece(pos + 1),start_pos)
+        self.set_piece(self.get_piece(pos + 1),start_pos+1)
       if pos-start_pos == -2:
-        self.set_piece(self.get_piece(pos - 2),start_pos)
+        self.set_piece(self.get_piece(pos - 2),start_pos-1)
     
   def switch_color(self):
     '''
@@ -574,6 +586,8 @@ class Chessboard():
     Zur Bedienung der "Schlagen en passant"-Regel.
     '''
     start, target, piece = self.get_last_move()
+    # Wenn pawn gerade erst um zwei Felder gezogen wurde und tatsächlich ein Bauer
+    # ist
     if piece == pawn and abs(target-start) == 20 and isinstance(piece,Pawn):
       return True
     return False
@@ -620,7 +634,7 @@ class Chessboard():
       if not opposing_king.is_safe_position():
         opposing_king.is_check_given = True
         # Wenn der gegnerische König nicht mehr ausweichen kann:
-        if not opposing_king.get_admissible_positions(True):
+        if not opposing_king.get_safe_positions():
           self.has_finnished = True
       return True
     else:
@@ -689,9 +703,10 @@ class IFChessboard():
     # Außerdem ist dei erste Reihe unten und nicht oben, weshalb (9-i) und nicht i
     # Das Feld wird mit der Nummer der jeweiligen Reihe am linken und rechten
     # Spielfeldrand dargestellt
-    pos_list = positions.splitlines()
+    rank_list = positions.splitlines()
     for i in range(8):
       str_rank=str(8-i)
+      pos_list = rank_list[7-i].split(',')
       for j in range(8):
         s = pos_list[j] if pos_list[j] else STR_EMPTY_CELL
         str_rank+=" | %s" % s
@@ -709,16 +724,16 @@ class IFChessboard():
     thereby validating the plausibility of the input.
     '''
     start, target = '',''
-    while not self.is_valid_expression(start):
+    while not self.is_valid_expression(start.capitalize()):
       start = raw_input(MSG_ASK_FOR_PIECE)
-      if not self.is_valid_expression(start):
+      if not self.is_valid_expression(start.capitalize()):
         print MSG_INVALID_INPUT
-    while not self.is_valid_expression(target):
+    while not self.is_valid_expression(target.capitalize()):
       target = raw_input(MSG_ASK_FOR_POSITION)
-      if not self.is_valid_expression(target):
+      if not self.is_valid_expression(target.capitalize()):
         print MSG_INVALID_INPUT
     # return the numeric start and end position
-    return self.get_position(start),self.get_position(target)
+    return self.get_position(start.capitalize()),self.get_position(target.capitalize())
     
     
 #################################################################
@@ -728,11 +743,11 @@ def start():
   '''
   Main Loop
   '''
-  while not game.has_finnished:
-    interface.display_game(str(game))
-    interface.display_msg( MSG_ROUND % game.get_color() )
+  while not get_chessboard().has_finnished:
+    get_interface().display_game(str(get_chessboard()))
+    get_interface().display_msg( MSG_ROUND % get_chessboard().get_color() )
     perform_move()
-  interface.display_msg( MSG_WINNER % game.get_king_of_opponent().get_color() )
+  get_interface().display_msg( MSG_WINNER % get_chessboard().get_king_of_opponent().get_color() )
 
 def perform_move():
   '''
@@ -741,19 +756,19 @@ def perform_move():
   is_valid_move=False
   while not is_valid_move:
     # Zunächst prüfen, ob der ziehende Spieler im Schach steht
-    if game.is_check_given():
-      interface.display_msg( MSG_CHECK_GIVEN )
-    move = interface.get_move()
-    is_valid_move = game.move_piece(move)
-    if game.has_finnished:  # Will occur when a player is given chess mate
+    if get_chessboard().is_check_given():
+      get_interface().display_msg( MSG_CHECK_GIVEN )
+    move = get_interface().get_move()
+    is_valid_move = get_chessboard().move_piece(move)
+    if get_chessboard().has_finnished:  # Will occur when a player is given chess mate
       break
     if not is_valid_move: 
-      interface.display_msg( MSG_INVALID_MOVE )
+      get_interface().display_msg( MSG_INVALID_MOVE )
       continue 
   # Switch from white to black or vice versa to indicate the
   # currently moving player
-  game.append_history(move)
-  game.switch_color()
+  get_chessboard().append_history(move)
+  get_chessboard().switch_color()
     
 def newinstance(name,pos):
   '''
@@ -777,7 +792,7 @@ def newinstance(name,pos):
     return Knight(pos,False)
   if name == 'D':
     return Queen(pos)
-  if name == 'q':
+  if name == 'd':
     return Queen(pos,False)
   if name == 'K':
     return King(pos)
@@ -785,9 +800,31 @@ def newinstance(name,pos):
     return King(pos,False)
   else:
     return ''
-    
-game = Chessboard(positions)
-interface = IFChessboard()
+
+def newchessboard(positions=None):
+  if isinstance(positions,str):
+    positions=positions.splitlines()
+  return Chessboard(positions)
+
+def get_chessboard(positions=None):
+  '''
+  Das Spielbrett einschließlich der Figuren.
+  Wird beim ersten Aufruf initialisiert. Bei
+  danach folgenden Aufrufen wird die Variable
+  positions nicht mehr verarbeitet. 
+  '''
+  if not CHESSBOARD:
+    log.debug('Instantiating chessboard')
+    globals()['CHESSBOARD'] = newchessboard(positions)
+  return CHESSBOARD
+  
+def get_interface():
+  '''
+  Die Benutzerschnittstelle
+  '''
+  if not globals()['INTERFACE']:
+    globals()['INTERFACE'] = IFChessboard()
+  return INTERFACE
 
 if __name__ == "__main__":
   start()
