@@ -11,8 +11,8 @@ class Chessboard():
   '''
   Container für Spielfeldbelegungen
   '''
-  has_finnished = False         # Für die Abbruchbedingung
-  is_white      = True          # True, wenn weiß am Zug ist
+  has_finnished = False            # Für die Abbruchbedingung
+  is_white      = True             # True, wenn weiß am Zug ist
   history       = None             # Um sich die Spielzüge zu merken
   positions     = None             # Spielfeld mit Belegungen
   white_king    = None
@@ -118,6 +118,7 @@ class Chessboard():
     self.positions[pos] = piece
     if piece.has_never_been_moved:
       piece.has_never_been_moved = False
+    # Nicht vergessen das alte Feld auf unbesetzt zu setzen
     if start_pos != pos:
       self.positions[start_pos] = ''
       piece.set_position(pos)
@@ -130,7 +131,7 @@ class Chessboard():
     # Wenn ein Bauer en passant geschlagen werden soll
     if isinstance(piece, Pawn):
       p = self.get_piece(pos-10) if self.is_white else self.get_piece(pos+10):
-      if p.can_be_hit_enpassant():
+      if p.can_be_hit_en_passant():
         self.positions[p.get_position()]==''
     
   def switch_color(self):
