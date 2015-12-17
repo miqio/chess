@@ -180,7 +180,7 @@ class Pawn(Piece):
   
   def __init__(self,pos,color=True):
     super(Pawn,self).__init__( pos, color)
-    self.directions = (-1,1,9,10,11) if self.is_white else (1,-1,-9,-10,-11)
+    self.directions = (9,10,11) if self.is_white else (-9,-10,-11)
     
   def __str__(self):
     if self.is_white:
@@ -215,17 +215,23 @@ class Pawn(Piece):
     Bei Bauern ist es richtungsabhängig, ob sie auf besetzte Felder können. 
     '''
     # Für diagonale Richtungen muss das benachbarte Feld mit einem Gegner besetzt sein...
+    is_occupied = bool(manager.get_piece(target))
+    if abs(direction) == 9:
+      pos_en_passant = target + direction + direction/abs(direction)
+    elif abs(direction) == 11:
+      pos_en_passant = target + direction - direction/abs(direction)
+    else:
+      pos_en_passant = 10
+    p = manager.get_piece(pos_en_passant)
+    is_occupied_en_passant = bool(p)
     if abs(direction) in [9,11]:
       if super(Pawn,self).is_allowed_cell(target):
-        is_occupied = bool(manager.get_piece(target))       
-        return is_occupied
-      else:
-        return False
-    # Das gleiche gilt für Schritte nach rechts oder links unter bestimmten Voraussetzungen...
-    elif abs(direction) == 1:
-      p = manager.get_piece(target)
-      if p and p.can_be_hit_en_passant():
-        return True
+        if is_occupied:
+          return True
+        elif is_occupied_en_passant and p.can_be_hit_en_passant():
+          return True
+        else:
+          return False
       else:
         return False
     # Ansonsten geht es nur für unbesetzte Felder
