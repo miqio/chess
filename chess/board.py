@@ -1,9 +1,9 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import logging                  # Um Meldungen auszugeben
-from pieces import King, Rook   # Für Rochade und Schachbedingung
-import manager                  # Für Zugriff auf Textkonstanten und Figurenerzeugung
+import logging                        # Um Meldungen auszugeben
+from pieces import King, Rook, Pawn   # Für Rochade, Schachbedingung und en passant Regel
+import manager                        # Für Zugriff auf Textkonstanten und Figurenerzeugung
 
 log = logging.getLogger(__name__)
 
