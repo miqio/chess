@@ -1,9 +1,9 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import logging  # Um Meldungen auszugeben
-from pieces import King, Rook
-import manager
+import logging                  # Um Meldungen auszugeben
+from pieces import King, Rook   # Für Rochade und Schachbedingung
+import manager                  # Für Zugriff auf Textkonstanten und Figurenerzeugung
 
 log = logging.getLogger(__name__)
 
@@ -36,6 +36,8 @@ class Chessboard():
     # Es werden Reihen à 10 genommen, um bei diagonalen Bewegungn
     # der Figuren den Rand leichter bestimmen zu können. Außerdem
     # oben und unten je eine Reihe mit nix 
+    if isinstance(positions,str):
+      positions=positions.splitlines()
     positions = positions if positions else self.initial_positions
     self.positions = []
     self.history = []
@@ -205,4 +207,41 @@ class Chessboard():
     else:
       return False
 
+class Simulator:
+  '''
+  Um einen Zug zu simulieren. Ein neues Schachspiel mit den
+  aktuellen Stellungen verändert um den zu simulierenden Zug
+  wird erzeugt, um die Bedrohung für den König der ziehenden
+  Partei zu analysieren.
+  '''
+  chessboard=None
+
+  def __init__(self, start_pos, target_pos):
+    piece = self.get_piece(start_pos)
+    self.set_piece(piece,target_pos)
+  
+  def get_chessboard(self):
+    '''
+    Lazy initialization of a new game from the current game
+    '''
+    if not self.chessboard:
+      self.chessboard = Chessboard(str(manager.get_chessboard()))
+      self.chessboard.is_white=manager.get_chessboard().is_white
+    return self.chessboard
+  
+  def get_piece(self,pos):
+    return self.get_chessboard().get_piece(pos)
+  
+  def set_piece(self, piece, target_pos):
+    '''
+    Kapselt chessboard.set_piece
+    ''' 
+    log.debug("Simulating a move...")
+    self.get_chessboard().set_piece(piece,target_pos)
+  
+  def is_safe_position_for_king(self):
+    '''
+    Prüft, ob der eigene König durch den geplanten Zug in Bedrängnis gerät
+    '''  
+    return self.get_chessboard().get_king_of_moving_player().is_safe_position()
 

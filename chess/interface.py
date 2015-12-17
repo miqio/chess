@@ -1,41 +1,33 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
+# -*- coding:utf-8 -*-
 
 import logging  # Um Meldungen auszugeben
 import re       # Das für den Mustervergleich erforderliche Modul "regular expressions""
-import manager
+import manager  # chess.manager hält die Textkonstanten
 
 class IFChessboard():
   '''
   Benutzerschnittstelle für das Schachspiel.
   '''
-  dic={}                              # Zuordnungen Feldbezeichnungen zu Index
+  # Zuordnungen Feldbezeichnungen zu Indizes
+  dic = {
+    'A1': 11, 'A2': 21, 'A3': 31, 'A4': 41, 'A5': 51, 'A6': 61, 'A7': 71, 'A8': 81, 
+    'B1': 12, 'B2': 22, 'B3': 32, 'B4': 42, 'B5': 52, 'B6': 62, 'B7': 72, 'B8': 82, 
+    'C1': 13, 'C2': 23, 'C3': 33, 'C4': 43, 'C5': 53, 'C6': 63, 'C7': 73, 'C8': 83, 
+    'D1': 14, 'D2': 24, 'D3': 34, 'D4': 44, 'D5': 54, 'D6': 64, 'D7': 74, 'D8': 84, 
+    'E1': 15, 'E2': 25, 'E3': 35, 'E4': 45, 'E5': 55, 'E6': 65, 'E7': 75, 'E8': 85, 
+    'F1': 16, 'F2': 26, 'F3': 36, 'F4': 46, 'F5': 56, 'F6': 66, 'F7': 76, 'F8': 86, 
+    'G1': 17, 'G2': 27, 'G3': 37, 'G4': 47, 'G5': 57, 'G6': 67, 'G7': 77, 'G8': 87, 
+    'H1': 18, 'H2': 28, 'H3': 38, 'H4': 48, 'H5': 58, 'H6': 68, 'H7': 78, 'H8': 88
+  }
   pattern=re.compile('[A-H][1-8]$')   # Für den Mustervergleich bei der Eingabe
   
-  def __init__(self):
-    # Initialize dic. 
-    # 
-    # Die üblichen Feldbezeichnungen werden den entsprechenden 
-    # Indizes in positions (s.u.) zugeordnet. Spieler können ihre Züge
-    # damit auf die gewohnte Weise eingeben, etwa B2 nach B3. 
-    ind=10
-    letters=('A','B','C','D','E','F','G','H')
-    numbers=(1,2,3,4,5,6,7,8)
-    for number in numbers:
-      ind+=1
-      for letter in letters:
-        self.dic[letter+str(number)] = ind
-        ind+=1
-      ind+=1
-    # Die Könige merken, um später zu erkennen, ob sich diese im Schach 
-    # befinden
-
   #####################################################################
   # Hilfsfunktionen
   #####################################################################
   def get_position(self,pos):
     '''
-    Returns numeric position, pos is the string describing the position,
+    Returns numeric position, pos is the string describing the position,    
     e.g. pos = 'F6'
     
     Durch die Testfunktion is_valid_expression() werden schon mit der 
@@ -100,4 +92,23 @@ class IFChessboard():
     # return the numeric start and end position
     return self.get_position(start.capitalize()),self.get_position(target.capitalize())
     
- 
+  def get_piece(self):
+    '''
+    Reads the starting and target cell from commandline input
+    thereby validating the plausibility of the input.
+    '''
+    piece = ''
+    if manager.is_white_moving():
+      while not piece in ['L','T','S','D']:
+        piece = raw_input(manager.MSG_ASK_FOR_NEW_PIECE)
+        if not piece in ['L','T','S','D']:
+          print manager.MSG_INVALID_INPUT
+    else:
+      while not piece in ['l','t','s','d']:
+        piece = raw_input(manager.MSG_ASK_FOR_NEW_PIECE)
+        if not piece in ['l','t','s','d']:
+          print manager.MSG_INVALID_INPUT
+    # return the piece name
+    return piece
+    
+

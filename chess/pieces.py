@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import logging  # Um Meldungen auszugeben
-import manager
+import manager  # Für Zugriff auf Schachbrettfunktionen
 
 log = logging.getLogger(__name__)
 
@@ -68,12 +68,12 @@ class Piece(object):
       pos = self.get_position()
       step = pos + direction
       log.debug("Checking position %i for %s at %i", step, self.__class__.__name__, self.get_position())
-      while self.is_allowed_cell(step) and not self.get_chessboard().get_piece(step):
+      while self.is_allowed_cell(step) and not manager.get_piece(step):
         log.debug("Appending %i", step)
         admissible_positions.append(step)
         step += direction
       if self.is_allowed_cell(step):
-        log.debug("Appending %i, because %s belongs to opponent", step, self.get_chessboard().get_piece(step).__class__.__name__)
+        log.debug("Appending %i, because %s belongs to opponent", step, manager.get_piece(step).__class__.__name__)
         admissible_positions.append(step)      
     return admissible_positions
     
@@ -87,11 +87,17 @@ class Piece(object):
     '''
     return False
     
+  def can_be_promoted(self):
+    '''
+    Zur Bedienung der pawn promotion rule
+    '''
+    return False
+    
   def is_moving(self):
     '''
     True if piece belongs to the moving player
     '''
-    return self.get_chessboard().is_white == self.is_white
+    return manager.is_white_moving() == self.is_white
    
   def is_king_of_moving_player(self):
     '''
@@ -111,11 +117,11 @@ class Piece(object):
     '''
     if target < 11 or target > 88:
       return False
-    elif self.get_chessboard().get_piece(target):
-      return self.is_white != self.get_chessboard().get_piece(target).is_white
+    elif manager.get_piece(target):
+      return self.is_white != manager.get_piece(target).is_white
       # True if opponent's color, False otherwise
     else:
-      return self.get_chessboard().get_piece(target) is not None 
+      return manager.get_piece(target) is not None 
       # True if empty string, i.e a valid but un-occupied position
 
   def is_piece_of_opponent(self, o):
@@ -130,7 +136,7 @@ class Piece(object):
     '''
     is_safe_position = True
     pos = target_pos if target_pos else self.get_position()
-    opposing_pieces = filter( lambda o: self.is_piece_of_opponent(o) ,self.get_chessboard().positions)
+    opposing_pieces = filter( lambda o: self.is_piece_of_opponent(o) ,manager.get_positions())
     log.debug("Checking if %s at %i is check given", self.__class__.__name__,pos )
     for piece in opposing_pieces:
       log.debug('Checking if %s at %i attacks',piece.__class__.__name__,piece.get_position())
@@ -152,7 +158,7 @@ class Piece(object):
     if admissible_positions and pos in admissible_positions:
       log.debug("Checking if King is in danger when %s is moved from %i to %i",self.__class__.__name__,self.get_position(),pos)
       # Wenn der eigene König nach Durchführung des geplanten Zugs im Schach stünde... 
-      if not manager.simulate_move(self.get_position(), pos).is_safe_position_for_king():
+      if not manager.is_safe_position_for_king(self.get_position(), pos):
         return False
       return True
     else:
@@ -186,13 +192,24 @@ class Pawn(Piece):
     '''
     Zur Bedienung der "Schlagen en passant"-Regel.
     '''
-    start, target, piece = self.get_chessboard().get_last_move()
+    start, target, piece = manager.get_last_move()
     # Wenn pawn gerade erst um zwei Felder gezogen wurde und tatsächlich ein Bauer
     # ist
     if piece == self and abs(target-start) == 20:
       return True
     return False
   
+  def can_be_promoted(self):
+    '''
+    Falls der Bauerin der letzten Reihe angekommen ist...
+    '''
+    if self.is_white and self.get_position()/80 ==1:
+      return True
+    elif not self.is_white and self.get_position()/10 ==1:
+      return True
+    else:
+      return False
+      
   def is_allowed_cell(self,target, direction = None):
     '''
     Bei Bauern ist es richtungsabhängig, ob sie auf besetzte Felder können. 
@@ -200,20 +217,20 @@ class Pawn(Piece):
     # Für diagonale Richtungen muss das benachbarte Feld mit einem Gegner besetzt sein...
     if abs(direction) in [9,11]:
       if super(Pawn,self).is_allowed_cell(target):
-        is_occupied = bool(self.get_chessboard().get_piece(target))       
+        is_occupied = bool(manager.get_piece(target))       
         return is_occupied
       else:
         return False
     # Das gleiche gilt für Schritte nach rechts oder links unter bestimmten Voraussetzungen...
     elif abs(direction) == 1:
-      p = self.get_chessboard().get_piece(target)
+      p = manager.get_piece(target)
       if p and p.can_be_hit_en_passant():
         return True
       else:
         return False
     # Ansonsten geht es nur für unbesetzte Felder
     else:
-      return self.get_chessboard().get_piece(target) == ''
+      return manager.get_piece(target) == ''
       
   def get_max_steps(self,direction):
     '''
@@ -366,7 +383,7 @@ class King(Piece):
       # Wenn der König schachmatt ist...
       if self.is_check_given and not admissible_positions:
         log.debug("No available position found!")
-        self.get_chessboard().has_finnished = True
+        manager.finnish_game()
       return False
 
   def get_admissible_positions(self):
@@ -382,9 +399,9 @@ class King(Piece):
     # könnte
     if self.has_never_been_moved:
       if self.is_white:
-        rooks = self.get_chessboard().white_rooks  
+        rooks = manager.get_white_rooks()  
       else: 
-        rooks = self.get_chessboard().black_rooks
+        rooks = manager.get_black_rooks()
       for r in rooks:
         if r.has_never_been_moved:
           pos_r = r.get_position()
@@ -392,7 +409,7 @@ class King(Piece):
           # Zunächst die Prüfung für die große Rochade...
           if pos_r < pos_k:
             # Keine Figur darf zwischen Turm und König stehen...
-            fields = self.get_chessboard().positions[pos_r+1:pos_k]
+            fields = manager.get_positions()[pos_r+1:pos_k]
             if not filter(lambda p: isinstance(p,Piece),fields):
               is_safe_position = True
               # ...und der König auf seinem Weg auch nirgends im Schach stehen...
@@ -404,7 +421,7 @@ class King(Piece):
                 admissible_positions.append(position - 2)
           # ...dann die für die kleine Rochade...
           else:
-            fields = self.get_chessboard().positions[pos_k+1:pos_r]
+            fields = manager.get_positions()[pos_k+1:pos_r]
             if not filter(lambda p: isinstance(p,Piece),fields):
               is_safe_position = True
               for pos in range(pos_k+1,pos_r-1):
