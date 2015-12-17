@@ -217,9 +217,9 @@ class Pawn(Piece):
     # Für diagonale Richtungen muss das benachbarte Feld mit einem Gegner besetzt sein...
     is_occupied = bool(manager.get_piece(target))
     if abs(direction) == 9:
-      pos_en_passant = target + direction + direction/abs(direction)
+      pos_en_passant = target - direction - direction/abs(direction)
     elif abs(direction) == 11:
-      pos_en_passant = target + direction - direction/abs(direction)
+      pos_en_passant = target - direction + direction/abs(direction)
     else:
       pos_en_passant = 10
     p = manager.get_piece(pos_en_passant)
