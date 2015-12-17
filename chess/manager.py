@@ -1,5 +1,13 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+#
+# Das Spiel ist nach dem Model-View-Controller-Entwurfsmuster konzipiert. 
+# Das Modul manager.py ist der Controller, der View und Model miteinander
+# verbindet. Den View repräsentiert das Modul interface mit der Klasse
+# IFInterface, das Modell ist mehrteilig und besteht zum einen aus 
+# Chessboard im Modul board und zum anderen aus der Klasse Piece und
+# seinen Unterklassen im Modul pieces. Der Ablauf eines Spiels wird im
+# Modul manager gesteuert.   
 
 import logging  # Um Meldungen auszugeben
 import pieces
@@ -169,10 +177,8 @@ def perform_move():
       get_interface().display_msg( MSG_PAWN_PROMOTION )
       piece_name = get_interface().get_piece()
       get_positions()[ target_pos] = newinstance( piece_name, target_pos )
-  # Switch from white to black or vice versa to indicate the
-  # currently moving player
-  get_chessboard().append_history(move)
-  get_chessboard().switch_color()
+    get_chessboard().append_history(move)
+    get_chessboard().switch_color()
   
 def is_safe_position_for_king(start_pos,target_pos):
   '''
@@ -182,4 +188,3 @@ def is_safe_position_for_king(start_pos,target_pos):
   '''
   return Simulator(start_pos,target_pos).is_safe_position_for_king()
   
-
