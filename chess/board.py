@@ -127,6 +127,11 @@ class Chessboard():
         self.set_piece(self.get_piece(pos + 1),start_pos+1)
       if pos-start_pos == -2:
         self.set_piece(self.get_piece(pos - 2),start_pos-1)
+    # Wenn ein Bauer en passant geschlagen werden soll
+    if isinstance(piece, Pawn):
+      p = self.get_piece(pos-10) if self.is_white else self.get_piece(pos+10):
+      if p.can_be_hit_enpassant():
+        self.positions[p.get_position()]==''
     
   def switch_color(self):
     '''
