@@ -1,8 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import logging  # Um Meldungen auszugeben
-import argparse # Damit beim Programmaufruf Werte übergeben werden können
+import logging                  # Um Meldungen auszugeben
+import argparse                 # Damit beim Programmaufruf Werte übergeben werden können
 import chess.manager as manager # Controller zur Durchführung des Schachspiels
 
 parser = argparse.ArgumentParser(description="Schachspiel für die Kommandozeile und zwei Spieler")
@@ -18,8 +18,4 @@ log = logging.getLogger(__name__)
 
     
 if __name__ == "__main__":
-  if positions:
-    # Initialisiert das Brett mit ggf. übergebenen Stellungen, sonst die 
-    # übliche Startaufstellung
-    manager.get_chessboard(positions)
-  manager.start()
+  manager.start(positions)

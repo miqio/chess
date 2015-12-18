@@ -38,17 +38,20 @@ class Chessboard():
     # oben und unten je eine Reihe mit nix 
     if isinstance(positions,str):
       positions=positions.splitlines()
-    positions = positions if positions else self.initial_positions
+    positions = positions if positions is not None else self.initial_positions
     self.positions = []
     self.history = []
     for i in range(10):
-      self.positions.append(None)     # Eine Reihe nix
+      self.positions.append(None)        # Eine Reihe nix
     for i in range(8):
-      self.positions.append(None)     # Nix am linken Rand
-      rank = positions[i].split(',')  # Der String mit den Belegungen
+      self.positions.append(None)        # Nix am linken Rand
+      if positions:
+        rank = positions[i].split(',')   # Der String mit den Belegungen
+      else:
+        rank = ['','','','','','','',''] # Leeres Brett initialisieren
       for j in range(8):              
         self.positions.append(manager.newinstance(rank[j],len(self.positions)))
-      self.positions.append(None)     # Nix am rechten Rand
+      self.positions.append(None)        # Nix am rechten Rand
     for i in range(10):
       self.positions.append(None)
     # Positionen der Türme merken für eventuelle Rochaden
@@ -78,18 +81,72 @@ class Chessboard():
       out+="%s\n" % s
     return out.strip()
   
-  def get_color(self):
-    '''
-    Return the color of the current move
-    '''
-    return manager.STR_WHITE if self.is_white else manager.STR_BLACK
+  ################################################################################
+  # Public interface
+  ################################################################################
     
+  def move_piece(self,move):
+    '''
+    Performs the move
+    '''
+    start_pos, target_pos = move
+    piece_to_be_moved = self.get_piece(start_pos)
+    if self.is_valid_move(move):
+      self.set_piece(piece_to_be_moved,target_pos)
+      # Wenn durch den Zug der gegnerische König in Schach gestellt wird:
+      opposing_king = self.get_king_of_opponent()
+      if not opposing_king.is_safe_position():
+        opposing_king.is_check_given = True
+        # Wenn der gegnerische König nicht mehr ausweichen kann:
+        if not opposing_king.get_safe_positions():
+          self.has_finnished = True
+      return True
+    else:
+      return False
+
   def get_piece(self,pos):
     '''
     Returns piece on position pos or None or -1
     '''
     return  self.positions[pos]
   
+  def switch_color(self):
+    '''
+    Schaltet die Farbe um, um die Farbe des ziehenden Spielers zu bestimmen
+    '''
+    self.is_white = not self.is_white
+    
+  def append_history(self, move):
+    '''
+    Addiert einen Spielzug zur history
+    '''
+    start, target = move
+    piece = self.get_piece(target)
+    self.history.append((start,target,piece))
+    
+  def get_last_move(self):
+    '''
+    gibt den letzten Zug zurück
+    '''
+    return self.history[-1] if self.history else (0, 0, -1)
+     
+  def is_check_given(self):
+    '''
+    Return True, if check is given to one of the players
+    '''
+    return self.get_king_of_moving_player().is_check_given \
+        or self.get_king_of_opponent().is_check_given
+  
+  ################################################################################
+  # Public interface
+  ################################################################################
+    
+  def get_color(self):
+    '''
+    Return the color of the current move
+    '''
+    return manager.STR_WHITE if self.is_white else manager.STR_BLACK
+    
   def get_king_of_opponent(self):
     '''
     Return the king of the opponent
@@ -134,47 +191,12 @@ class Chessboard():
       p = self.get_piece(pos-10) if self.is_white else self.get_piece(pos+10)
       if p and p.can_be_hit_en_passant():
         log.debug("Schlage Bauer auf %i en passant!",p.get_position()) 
-        self.positions[p.get_position()]==''
-    
-  def switch_color(self):
-    '''
-    Schaltet die Farbe um, um die Farbe des ziehenden Spielers zu bestimmen
-    '''
-    self.is_white = not self.is_white
-    
-  def append_history(self, move):
-    '''
-    Addiert einen Spielzug zur history
-    '''
-    start, target = move
-    piece = self.get_piece(target)
-    self.history.append((start,target,piece))
-    
-  def get_last_move(self):
-    '''
-    gibt den letzten Zug zurück
-    '''
-    return self.history[-1] if self.history else (0, 0, -1)
-    
-  def get_last_moved_piece(self):
-    '''
-    Gibt die zuletzt bewegte Figur zurück
-    '''
-    start, target, piece = self.get_last_move()
-    return piece
+        self.positions[p.get_position()]=''
     
   ################################################################################
   # Some test functions
   ################################################################################
     
-  def is_check_given(self):
-    '''
-    Return True, if check is given to one of the players
-    '''
-    return self.get_king_of_moving_player().is_check_given \
-        or self.get_king_of_opponent().is_check_given
-  
-  
   def is_admissible_piece(self, cell_occupation):
     '''
     True if cell is not empty and piece is of admissible color.
@@ -195,25 +217,6 @@ class Chessboard():
     start, target = move
     piece = self.get_piece(start)
     return self.is_admissible_piece(piece) and piece.is_valid_move(target)
-
-  def move_piece(self,move):
-    '''
-    Performs the move
-    '''
-    start_pos, target_pos = move
-    piece_to_be_moved = self.get_piece(start_pos)
-    if self.is_valid_move(move):
-      self.set_piece(piece_to_be_moved,target_pos)
-      # Wenn durch den Zug der gegnerische König in Schach gestellt wird:
-      opposing_king = self.get_king_of_opponent()
-      if not opposing_king.is_safe_position():
-        opposing_king.is_check_given = True
-        # Wenn der gegnerische König nicht mehr ausweichen kann:
-        if not opposing_king.get_safe_positions():
-          self.has_finnished = True
-      return True
-    else:
-      return False
 
 class Simulator:
   '''

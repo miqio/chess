@@ -159,6 +159,8 @@ class Piece(object):
       log.debug("Checking if King is in danger when %s is moved from %i to %i",self.__class__.__name__,self.get_position(),pos)
       # Wenn der eigene König nach Durchführung des geplanten Zugs im Schach stünde... 
       if not manager.is_safe_position_for_king(self.get_position(), pos):
+        log.debug("Move from %i to %i is not possible, because King is in danger!\n",
+              self.get_position(),pos)
         return False
       return True
     else:
